@@ -1,0 +1,19 @@
+# Falla7 - Apache configuration
+# Enable CORS for font loading
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>
+
+# Serve .js as text/javascript
+AddType text/javascript .js
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/javascript "access plus 1 week"
+</IfModule>
+
+# Redirect all to index.html for SPA
+Options -MultiViews

@@ -1,0 +1,13 @@
+{
+  "name": "falla7",
+  "version": "2.1.0",
+  "private": true,
+  "description": "Falla7 — Capstone Engineering Toolkit",
+  "scripts": {
+    "dev": "npx serve . -l 3000",
+    "dev:vercel": "vercel dev"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^1.6.1"
+  }
+}
