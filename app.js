@@ -1196,13 +1196,6 @@ void loop() {
 
         const floatSys =
           "You are a Falla7 Arduino code editor for Grade 11 Egyptian STEM students.\n\n" +
-          "STRICT RULES — follow exactly:\n" +
-          "1. ONLY make the change the user explicitly requests. Do NOT add anything extra.\n" +
-          "2. If user says 'add LCD' — add ONLY the LCD. Do NOT add PTC, heater, buzzer, or anything else.\n" +
-          "3. If user says nothing about actuators — do NOT change actuators.\n" +
-          "4. If user says nothing about sensors — do NOT change sensors.\n" +
-          "5. Preserve ALL existing code logic exactly. Only modify the specific part requested.\n" +
-          "6. ALWAYS output all 3 blocks — even if only code changed, still output wiring. Never skip a block.\n\n" +
           "CURRENT SETUP:\n" +
           "- MCU: " + mcu + "\n" +
           "- Sensors: " + (Object.keys(sensors).join(", ") || "none") + "\n" +
@@ -1210,21 +1203,31 @@ void loop() {
           "- AI-added components: " + (aiComponents.length ? aiComponents.map(c=>c.label+"@"+c.pin).join(", ") : "none") + "\n\n" +
           "CURRENT CODE:\n```cpp\n" + genCode + "\n```\n\n" +
           "CURRENT WIRING:\n" + wiring + "\n\n" +
-          "=== OUTPUT FORMAT (all 3 blocks, always) ===\n\n" +
-          "BLOCK 1 — Full updated .ino (NO truncation, NO \'...\', every single line):\n" +
-          "UPDATED_CODE_START\n<complete .ino code>\nUPDATED_CODE_END\n\n" +
-          "BLOCK 2 — Full updated wiring guide:\n" +
+          "=== OUTPUT ALL 3 BLOCKS ===\n\n" +
+          "BLOCK 1 (always): Full updated .ino — NO truncation, NO \'...\':\n" +
+          "UPDATED_CODE_START\n<every single line of code>\nUPDATED_CODE_END\n\n" +
+          "BLOCK 2 (always): Full updated wiring guide:\n" +
           "UPDATED_WIRING_START\n<complete wiring>\nUPDATED_WIRING_END\n\n" +
-          "BLOCK 3 — Extra components in updated code that are NOT in the original sensor/actuator lists above.\n" +
-          "List ONLY components you actually added in this edit. If none, output [].\n" +
-          "UPDATED_COMPONENTS_START\n[{\"label\":\"LCD 16x2 I2C\",\"pin\":\"SDA/SCL\",\"type\":\"I2C\",\"icon\":\"LCD\",\"role\":\"display\"}]\nUPDATED_COMPONENTS_END\n\n" +
-          "Component fields: label, pin, type(analog|digital|I2C|SPI|relay), icon(2-6 chars), role(sensor|display|actuator|alarm|output)\n" +
-          "Classification:\n" +
-          "- LCD/OLED = display, I2C (SDA/SCL), role:display\n" +
-          "- Buzzer = digital pin, role:alarm\n" +
-          "- LED = digital pin, role:output\n" +
-          "- Heater/pump/fan/motor/valve = relay, role:actuator — ONLY add if user explicitly requests\n\n" +
-          "After blocks: 2-4 plain-English sentences explaining ONLY what changed.";
+          "BLOCK 3 (always): List ALL extra hardware components present in the updated code that are NOT in the original sensor/actuator lists. Include previously AI-added ones still present. If removed, omit. If nothing extra, output [].\n" +
+          "CRITICAL CLASSIFICATION RULES:\n" +
+          "- Actuators (heaters, pumps, fans, motors, valves) ALWAYS need a relay — set type=\'relay\' and note the relay pin\n" +
+          "- Sensors (LCD displays, OLED, buzzers, LEDs, servos, RTC) connect directly — set type correctly (I2C/digital/analog/SPI)\n" +
+          "- PTC heater, solenoid valve, motor = ACTUATOR, must use relay. Never wire them directly to Arduino\n" +
+          "- LCD/OLED = output display, connect via I2C (SDA/SCL) or direct digital pins\n" +
+          "- Buzzer = direct digital pin, type=digital\n" +
+          "UPDATED_COMPONENTS_START\n" +
+          "[{\"label\":\"LCD 16x2 I2C\",\"pin\":\"SDA/SCL\",\"type\":\"I2C\",\"icon\":\"LCD\",\"role\":\"display\"},{\"label\":\"PTC Heater\",\"pin\":\"D8 via Relay\",\"type\":\"relay\",\"icon\":\"PTC\",\"role\":\"actuator\"}]\n" +
+          "UPDATED_COMPONENTS_END\n" +
+          "Fields: label(string), pin(string), type(analog|digital|I2C|SPI|relay|power), icon(2-6 chars), role(sensor|display|actuator|alarm|output)\n" +
+          "IMPORTANT CLASSIFICATION RULES:\n" +
+          "- Heaters (PTC, IR, wire), pumps, fans, motors, solenoid valves, peltier = role:actuator, type:relay (ALWAYS needs relay module, show pin as Dx via Relay)\n" +
+          "- Temperature sensors, humidity sensors, soil sensors, light sensors, gas/air quality sensors, water sensors = role:sensor\n" +
+          "- LCD, OLED, TFT displays = role:display\n" +
+          "- Buzzers, piezo alarms = role:alarm\n" +
+          "- LEDs, RGB LEDs = role:output\n" +
+          "- Servos, stepper motors = role:actuator, type:digital\n" +
+          "NEVER put a heater, pump, fan, or motor on the sensor side. ALWAYS include relay for actuators.\n\n" +
+          "After blocks: 2-4 plain-English sentences explaining the change.";
 
         try {
           const reply = await callAI(next.map(m => ({ role: m.role, content: m.content })), floatSys, 8000);
@@ -3150,7 +3153,7 @@ void loop() {
                       const GND_BUS_Y = SVG_H - 40;
 
                       /* wire colors */
-                      const wireColor = (type) => type === "I2C" ? "#ce93d8" : type === "analog" ? "#29b6f6" : type === "interrupt" ? "#ffb74d" : "#66bb6a";
+                      const wireColor = (type) => type === "I2C" ? "#ce93d8" : "#29b6f6"; // all signal wires = blue per legend
 
                       return (
                         <div style={{ background: BG2, border: "1px solid " + BD, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "0 0 20px 0" }}>

@@ -38,6 +38,45 @@
   <!-- ── App Root ──────────────────────────────────────────────── -->
   <div id="root"></div>
 
+  <!-- ── Loading Screen (shown until React mounts) ────────────── -->
+  <div id="falla7-loader" style="
+    position:fixed;inset:0;background:#060a06;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    z-index:9999;font-family:'Outfit',sans-serif;transition:opacity .4s ease;
+  ">
+    <div style="font-size:52px;margin-bottom:16px;animation:ldr-float 2s ease-in-out infinite;">🌱</div>
+    <div style="font-size:22px;font-weight:800;color:#81c784;letter-spacing:2px;margin-bottom:6px;">Falla7</div>
+    <div style="font-size:13px;color:#4a7a4a;letter-spacing:1px;margin-bottom:32px;">فلاح — Capstone Toolkit</div>
+    <div style="display:flex;gap:8px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:#4caf50;animation:ldr-dot 1.2s ease-in-out infinite 0s;"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:#4caf50;animation:ldr-dot 1.2s ease-in-out infinite .2s;"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:#4caf50;animation:ldr-dot 1.2s ease-in-out infinite .4s;"></div>
+    </div>
+    <style>
+      @keyframes ldr-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+      @keyframes ldr-dot { 0%,80%,100%{transform:scale(.6);opacity:.4} 40%{transform:scale(1);opacity:1} }
+    </style>
+  </div>
+  <script>
+    // Remove loader once React has painted the app
+    (function() {
+      var loader = document.getElementById('falla7-loader');
+      var observer = new MutationObserver(function() {
+        if (document.getElementById('root').children.length > 0) {
+          loader.style.opacity = '0';
+          setTimeout(function(){ loader.style.display = 'none'; }, 420);
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.getElementById('root'), { childList: true });
+      // Hard fallback — remove after 8s regardless
+      setTimeout(function(){
+        loader.style.opacity = '0';
+        setTimeout(function(){ loader.style.display = 'none'; }, 420);
+      }, 8000);
+    })();
+  </script>
+
   <!-- ── Config (API keys & app settings) ─────────────────────── -->
   <script src="config.js"></script>
 
