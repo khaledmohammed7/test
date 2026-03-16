@@ -1,27 +1,40 @@
-﻿/* ═══════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    Falla7 — Capstone Engineering Toolkit
-   Base Styles
+   Base Styles — Redesigned
    Author: Khaled Mohammed — STEM ALEX S27
 ═══════════════════════════════════════════════════════════════ */
 
-html,
-    body {
-      margin: 0;
-      padding: 0;
-      background: #060a06;
-      font-family: 'Outfit', sans-serif
-    }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #070a10;
+  font-family: 'Instrument Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
 
-    * {
-      box-sizing: border-box
-    }
+* { box-sizing: border-box; }
 
-    #root {
-      min-height: 100vh
-    }
+#root { height: 100vh; overflow: hidden; }
 
-/* ── Scrollbar ────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #0a0f0a; }
-::-webkit-scrollbar-thumb { background: #1a3d1a; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #2d6a2d; }
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(245,166,35,.3); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(245,166,35,.6); }
+
+/* ── Selection ─────────────────────────────────────────────── */
+::selection { background: rgba(245,166,35,.25); color: #f5a623; }
+
+/* ── Dashboard ─────────────────────────────────────────────── */
+.dash-toggle {
+  width: 44px; height: 24px; border-radius: 12px;
+  position: relative; cursor: pointer; transition: background .25s;
+}
+.dash-toggle-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; position: absolute; top: 3px;
+  transition: left .22s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}

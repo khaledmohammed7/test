@@ -1,4 +1,4 @@
-﻿/* ═══════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    Falla7 — Capstone Engineering Toolkit
    React Application (JSX — transpiled in browser by Babel)
    Author: Khaled Mohammed — STEM ALEX S27
@@ -109,6 +109,7 @@ const { useState, useRef, useEffect } = React;
     function sWiring(mcu, type, idx) {
       const m = MCU[mcu] || MCU.uno;
       if (type === "analog") return "Signal → " + (m.analog[idx] || "A0") + ", VCC → " + m.voltage + ", GND → GND";
+      if (type === "ldr2pin") return "Pin 1 → " + (m.analog[idx] || "A0") + " + " + m.voltage + " via 10kΩ resistor, Pin 2 → GND";
       if (type === "digital") return "Data → " + (MCU_DIG[mcu]?.[idx] || "D2") + ", VCC → " + m.voltage + ", GND → GND, 10kΩ pull-up";
       if (type === "I2C") return m.i2c + ", VCC → " + m.voltage + ", GND → GND";
       if (type === "interrupt") return "Signal → " + (m.intPin || "D2") + " (interrupt pin), VCC → 5V, GND → GND";
@@ -122,7 +123,8 @@ const { useState, useRef, useEffect } = React;
       water_level: { label: "Water Level Sensor", icon: "WLVL", type: "analog", lib: "", systems: ["greenhouse", "aquaculture"], defMin: 200, defMax: 800 },
       soil_moisture: { label: "Soil Moisture Sensor", icon: "SOIL", type: "analog", lib: "", systems: ["greenhouse"], defMin: 300, defMax: 700 },
       cap_soil: { label: "Capacitive Soil v1.2", icon: "CSOIL", type: "analog", lib: "", systems: ["greenhouse"], defMin: 1500, defMax: 3000 },
-      ldr: { label: "LDR Photoresistor (2-pin)", icon: "LDR", type: "ldr2pin", lib: "", systems: ["greenhouse"], defMin: 200, defMax: 900 },      bh1750: { label: "BH1750 Digital Light", icon: "BH1750", type: "I2C", lib: '#include <Wire.h>\n#include <BH1750.h>', systems: ["greenhouse"], defMin: 1000, defMax: 50000 },
+      ldr:     { label: "LDR Photoresistor (2-pin)", icon: "LDR", type: "ldr2pin", lib: "", systems: ["greenhouse"], defMin: 200, defMax: 900 },
+      bh1750:  { label: "BH1750 Digital Light", icon: "BH1750", type: "I2C", lib: '#include <Wire.h>\n#include <BH1750.h>', systems: ["greenhouse"], defMin: 1000, defMax: 50000 },
       tds: { label: "TDS Sensor V1.0", icon: "TDS", type: "analog", lib: "", systems: ["aquaculture"], defMin: 200, defMax: 800 },
       ph: { label: "Analog pH Meter", icon: "pH", type: "analog", lib: "", systems: ["greenhouse", "aquaculture"], defMin: 60, defMax: 75 },
       turbidity: { label: "Turbidity Sensor", icon: "TURB", type: "analog", lib: "", systems: ["aquaculture"], defMin: 0, defMax: 500 },
@@ -208,7 +210,8 @@ const { useState, useRef, useEffect } = React;
       water_level: { name: "Water Level", accuracy: "Relative", range: "Analog 0–1023", price: 65, voltage: "3.3–5V", protocol: "Analog", pros: "Very cheap, simple to use", cons: "Corrodes over time in water" },
       soil_moisture: { name: "Soil Moisture", accuracy: "Relative", range: "Analog 0–1023", price: 95, voltage: "3.3–5V", protocol: "Analog", pros: "Cheap, instant reading", cons: "Metal probes corrode — prefer capacitive" },
       cap_soil: { name: "Capacitive Soil", accuracy: "Relative", range: "Analog 0–4095", price: 195, voltage: "3.3V", protocol: "Analog", pros: "No corrosion, long lifespan", cons: "3.3V only — careful with 5V boards" },
-      ldr: { name: "LDR (2-pin)", accuracy: "Relative", range: "Analog 0–1023", price: 15, voltage: "3.3–5V", protocol: "Analog + 10kΩ", pros: "Extremely cheap, only 2 pins, no module needed", cons: "Needs external 10kΩ resistor for voltage divider" },      bh1750: { name: "BH1750", accuracy: "±20%", range: "1–65535 lux", price: 195, voltage: "3.3–5V", protocol: "I2C", pros: "Accurate lux values, digital I2C output", cons: "Fragile, costs more than LDR" },
+      ldr:     { name: "LDR (2-pin)", accuracy: "Relative", range: "Analog 0–1023", price: 15, voltage: "3.3–5V", protocol: "Analog + 10kΩ", pros: "Extremely cheap, only 2 pins, no module needed", cons: "Needs external 10kΩ resistor for voltage divider" },
+      bh1750:  { name: "BH1750", accuracy: "±20%", range: "1–65535 lux", price: 195, voltage: "3.3–5V", protocol: "I2C", pros: "Accurate lux values, digital I2C output", cons: "Fragile, costs more than LDR" },
       tds: { name: "TDS V1.0", accuracy: "±10%", range: "0–1000 ppm", price: 350, voltage: "3.3–5V", protocol: "Analog", pros: "Gives dissolved solids reading in ppm", cons: "Needs temperature compensation for accuracy" },
       ph: { name: "pH Meter", accuracy: "±0.1 pH", range: "0–14 pH", price: 650, voltage: "5V", protocol: "Analog", pros: "Essential for aquaculture water quality", cons: "Expensive, needs buffer calibration" },
       turbidity: { name: "Turbidity", accuracy: "Relative", range: "Analog 0–4095", price: 320, voltage: "5V", protocol: "Analog", pros: "Detects water cloudiness reliably", cons: "Needs clean sensor window" },
@@ -577,7 +580,7 @@ void loop() {
       const sKeys = Object.keys(sensors);
       sKeys.forEach(k => {
         const s = SENSORS[k]; if (!s) return;
-        if (s.type === "analog") { pinMap[k] = { pin: aPins[ai] || "A0" }; ai++; }
+        if (s.type === "analog" || s.type === "ldr2pin") { pinMap[k] = { pin: aPins[ai] || "A0" }; ai++; }
         if (s.type === "digital") { pinMap[k] = { pin: digs[di] || "D2" }; di++; }
         if (s.type === "interrupt") { pinMap[k] = { pin: m.intPin || "D2" }; }
         if (s.type === "I2C") { pinMap[k] = { pin: "I2C" }; }
@@ -833,11 +836,11 @@ void loop() {
       Object.keys(sensors).forEach(k => {
         const s = SENSORS[k]; if (!s) return;
         let pin = "";
-        if (s.type === "analog") { pin = aPins[ai] || "A0"; ai++; }
+        if (s.type === "analog" || s.type === "ldr2pin") { pin = aPins[ai] || "A0"; ai++; }
         if (s.type === "digital") { pin = digs[di] || "D2"; di++; }
         if (s.type === "interrupt") { pin = m.intPin || "D2"; }
         out += s.label + ":\n";
-        out += "  " + sWiring(mcu, s.type, s.type === "analog" ? ai - 1 : di - 1) + "\n";
+        out += "  " + sWiring(mcu, s.type, (s.type === "analog" || s.type === "ldr2pin") ? ai - 1 : di - 1) + "\n";
         if (k === "cap_soil") out += "  WARNING: Use 3.3V only - do NOT connect to 5V!\n";
         if (k === "mq135") out += "  WARNING: Needs 20-second warm-up before readings\n";
         out += "\n";
@@ -932,6 +935,19 @@ void loop() {
       const [toolModal, setToolModal] = useState(null);
       const [toolCopied, setToolCopied] = useState(false);
       const [serialRunning, setSerialRunning] = useState(false);
+
+      // ── Dashboard state ──────────────────────────────────────────────────────
+      const [dashRunning, setDashRunning]     = useState(false);
+      const [dashData, setDashData]           = useState({});       // { sensorKey: [{ t, v }, ...] }
+      const [dashActState, setDashActState]   = useState({});       // { actuatorKey: bool }
+      const [dashAutoMode, setDashAutoMode]   = useState(true);     // auto vs manual
+      const [dashAlerts, setDashAlerts]       = useState([]);       // [{ key, msg, ts }]
+      const [dashThresholds, setDashThresholds] = useState({});     // { key: { min, max } }
+      const [dashConnMode, setDashConnMode]   = useState("sim");    // "sim" | "ws"
+      const [dashWsUrl, setDashWsUrl]         = useState("ws://192.168.1.100:81");
+      const dashTimerRef  = useRef(null);
+      const dashWsRef     = useRef(null);
+      const dashTickRef   = useRef(0);
       const [menuOpen, setMenuOpen] = useState(false);
       const [serialLines, setSerialLines] = useState([]);
       const serialTimerRef = useRef(null);
@@ -1048,6 +1064,10 @@ void loop() {
       };
       const stopSerial = () => { setSerialRunning(false); clearInterval(serialTimerRef.current); };
       useEffect(() => () => clearInterval(serialTimerRef.current), []);
+      useEffect(() => () => {
+        clearInterval(dashTimerRef.current);
+        if (dashWsRef.current) { try { dashWsRef.current.close(); } catch(_){} }
+      }, []);
 
       // ── Tool modal copy ──────────────────────────────────────────────────────────
       const openTool = (title, content, filename) => setToolModal({ title, content, filename });
@@ -1062,10 +1082,10 @@ void loop() {
       // ── Theme colors ────────────────────────────────────────────────────────────
       const TH = darkMode ? {
         bg: "#060a06", bg2: "#0a110a", bg3: "#0f180f", bd: "#1a301a", bd2: "#264d26",
-        g: "#4caf50", g2: "#81c784", g3: "#2d7a2d", g4: "#163616", txt: "#dcedc8", mut: "#4a6e4a"
+        g: "#f5a623", g2: "#ffcc66", g3: "#c47d10", g4: "rgba(245,166,35,.08)", txt: "#dcedc8", mut: "#4a6e4a"
       } : {
         bg: "#f4faf4", bg2: "#ffffff", bg3: "#edf7ee", bd: "#c3e6c5", bd2: "#7bc87f",
-        g: "#2e7d32", g2: "#1b5e20", g3: "#388e3c", g4: "#d0ead1", txt: "#0d1f0d", mut: "#5a7a5a"
+        g: "#c47d10", g2: "#8a5500", g3: "#388e3c", g4: "#d0ead1", txt: "#0d1f0d", mut: "#5a7a5a"
       };
 
       // Renders **bold**, *italic*, numbered lists, bullet lines into real HTML nodes
@@ -1441,394 +1461,197 @@ void loop() {
       });
 
       return (
-        <div ref={rootRef} style={{ fontFamily: "'Outfit',sans-serif", minHeight: "100vh", background: BG, color: TXT, display: "flex", flexDirection: "column", position: "relative" }}>
-          <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet" />
+        <div ref={rootRef} style={{ fontFamily: "'Instrument Sans',sans-serif", minHeight: "100vh", background: BG, color: TXT, display: "flex", flexDirection: "column", position: "relative" }}>
+          <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
           <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet" />
           <style>{`
         *{box-sizing:border-box;margin:0;padding:0}
         button{color:inherit}
-        html{font-size:19px}
+        html{font-size:16px}
         body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
-        ::-webkit-scrollbar{width:3px;height:3px}
+        ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:rgba(76,175,80,.4);border-radius:99px}
-        ::-webkit-scrollbar-thumb:hover{background:rgba(76,175,80,.7)}
+        ::-webkit-scrollbar-thumb{background:rgba(245,166,35,.3);border-radius:99px}
+        ::-webkit-scrollbar-thumb:hover{background:rgba(245,166,35,.6)}
+        ::selection{background:rgba(245,166,35,.22);color:#f5a623}
 
-        /* ══ KEYFRAMES ════════════════════════════════════════════════════════ */
-        @keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
-        @keyframes pulseDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.8);opacity:.35}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes fadeDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes blink{0%,100%{opacity:.15}50%{opacity:1}}
+        @keyframes pulseDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.9);opacity:.3}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeDown{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes fadeLeft{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes fadeRight{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes scaleUp{from{opacity:0;transform:scale(.82) translateY(14px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        @keyframes scaleIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        @keyframes springIn{0%{opacity:0;transform:scale(.6) translateY(20px)}60%{transform:scale(1.06) translateY(-4px)}80%{transform:scale(.97) translateY(1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes fadeLeft{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes fadeRight{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes scaleUp{from{opacity:0;transform:scale(.82) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes scaleIn{from{opacity:0;transform:scale(.88) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes springIn{0%{opacity:0;transform:scale(.62) translateY(16px)}60%{transform:scale(1.04) translateY(-3px)}80%{transform:scale(.97) translateY(1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes shimmer{0%{background-position:-400% center}100%{background-position:400% center}}
         @keyframes march{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
-        @keyframes floatSlow{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-6px) rotate(1deg)}}
-        @keyframes glow{0%,100%{box-shadow:0 0 16px rgba(76,175,80,.12),0 0 32px rgba(76,175,80,.02)}50%{box-shadow:0 0 48px rgba(76,175,80,.45),0 0 96px rgba(76,175,80,.12)}}
-        @keyframes glowText{0%,100%{text-shadow:0 0 0px transparent}50%{text-shadow:0 0 24px rgba(76,175,80,.6),0 0 48px rgba(76,175,80,.25)}}
-        @keyframes borderPulse{0%,100%{border-color:rgba(76,175,80,.18)}50%{border-color:rgba(76,175,80,.65)}}
-        @keyframes scanLine{0%{top:-4%}100%{top:104%}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes floatSlow{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-5px) rotate(1deg)}}
+        @keyframes glow{0%,100%{box-shadow:0 0 16px rgba(245,166,35,.1),0 0 32px rgba(245,166,35,.02)}50%{box-shadow:0 0 40px rgba(245,166,35,.5),0 0 80px rgba(245,166,35,.12)}}
+        @keyframes glowText{0%,100%{text-shadow:0 0 0 transparent}50%{text-shadow:0 0 20px rgba(245,166,35,.7),0 0 40px rgba(245,166,35,.3)}}
+        @keyframes borderPulse{0%,100%{border-color:rgba(245,166,35,.15)}50%{border-color:rgba(245,166,35,.6)}}
+        @keyframes scanLine{0%{top:-3%}100%{top:104%}}
         @keyframes tagPop{0%{opacity:0;transform:scale(.65) translateY(8px)}70%{transform:scale(1.06) translateY(-1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes popIn{0%{opacity:0;transform:scale(.5) translateY(18px)}65%{transform:scale(1.09) translateY(-3px)}82%{transform:scale(.96) translateY(1px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-        @keyframes navIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes ripple{0%{transform:scale(0);opacity:.4}100%{transform:scale(4);opacity:0}}
-        @keyframes countUp{from{opacity:0;transform:scale(.4) translateY(24px)}65%{transform:scale(1.12) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes navIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes ripple{0%{transform:scale(0);opacity:.5}100%{transform:scale(4);opacity:0}}
+        @keyframes countUp{from{opacity:0;transform:scale(.4) translateY(22px)}60%{transform:scale(1.1) translateY(-3px)}100%{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes lineGrow{from{width:0;opacity:0}to{width:100%;opacity:1}}
         @keyframes lineGrowV{from{height:0;opacity:0}to{height:100%;opacity:1}}
         @keyframes rotateIn{from{opacity:0;transform:rotate(-12deg) scale(.8)}to{opacity:1;transform:rotate(0deg) scale(1)}}
         @keyframes wiggle{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(7deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(3deg)}}
         @keyframes slideUp{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
-        @keyframes morphBg{0%,100%{border-radius:24px}33%{border-radius:28px 18px 26px 20px}66%{border-radius:18px 26px 20px 28px}}
-        @keyframes tiltCard{from{transform:perspective(800px) rotateX(0deg) rotateY(0deg)}to{transform:perspective(800px) rotateX(0deg) rotateY(0deg)}}
+        @keyframes morphBg{0%,100%{border-radius:20px}33%{border-radius:26px 16px 24px 18px}66%{border-radius:16px 24px 18px 26px}}
         @keyframes spotlight{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}}
         @keyframes statReveal{0%{opacity:0;clip-path:inset(0 100% 0 0)}100%{opacity:1;clip-path:inset(0 0% 0 0)}}
         @keyframes badgeSlide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes particleFloat{0%{transform:translateY(0) translateX(0) scale(1);opacity:.6}50%{transform:translateY(-40px) translateX(10px) scale(1.2);opacity:.3}100%{transform:translateY(-80px) translateX(-5px) scale(.8);opacity:0}}
-        @keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-        @keyframes glowPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
-        @keyframes borderDance{0%{border-color:rgba(76,175,80,.15)}25%{border-color:rgba(76,175,80,.45)}50%{border-color:rgba(102,187,106,.35)}75%{border-color:rgba(76,175,80,.25)}100%{border-color:rgba(76,175,80,.15)}}
-        @keyframes textReveal{from{opacity:0;clip-path:inset(0 100% 0 0)}to{opacity:1;clip-path:inset(0 0% 0 0)}}
-        @keyframes hoverGlow{0%{box-shadow:0 0 0 0 rgba(76,175,80,0)}100%{box-shadow:0 0 28px 8px rgba(76,175,80,.18)}}
-        @keyframes iconBounce{0%,100%{transform:translateY(0) rotate(0deg)}30%{transform:translateY(-6px) rotate(-8deg)}60%{transform:translateY(-3px) rotate(4deg)}}
-        @keyframes slideInLeft{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes slideInRight{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes zoomFadeIn{from{opacity:0;transform:scale(1.08)}to{opacity:1;transform:scale(1)}}
-        @keyframes typewriter{from{width:0}to{width:100%}}
-        @keyframes cursorBlink{0%,100%{opacity:1}50%{opacity:0}}
-        @keyframes rotateGlow{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-        @keyframes cardEntrance{0%{opacity:0;transform:translateY(32px) scale(.94)}60%{transform:translateY(-4px) scale(1.02)}100%{opacity:1;transform:translateY(0) scale(1)}}
-        @keyframes numberFlip{0%{opacity:0;transform:rotateX(-90deg) translateY(20px)}60%{transform:rotateX(8deg) translateY(-3px)}100%{opacity:1;transform:rotateX(0) translateY(0)}}
+        @keyframes particleFloat{0%{transform:translateY(0) translateX(0) scale(1);opacity:.6}50%{transform:translateY(-36px) translateX(8px) scale(1.2);opacity:.3}100%{transform:translateY(-72px) translateX(-5px) scale(.8);opacity:0}}
+        @keyframes borderDance{0%{border-color:rgba(245,166,35,.12)}25%{border-color:rgba(245,166,35,.45)}50%{border-color:rgba(255,198,80,.35)}75%{border-color:rgba(245,166,35,.22)}100%{border-color:rgba(245,166,35,.12)}}
+        @keyframes hoverGlow{0%{box-shadow:0 0 0 0 rgba(245,166,35,0)}100%{box-shadow:0 0 28px 8px rgba(245,166,35,.18)}}
 
-        /* ══ TRANSITION UTILITIES ═════════════════════════════════════════════ */
         .t-fast{transition:all .15s cubic-bezier(.4,0,.2,1)}
         .t-smooth{transition:all .28s cubic-bezier(.4,0,.2,1)}
         .t-spring{transition:all .4s cubic-bezier(.34,1.56,.64,1)}
         .t-bounce{transition:all .5s cubic-bezier(.34,1.8,.64,1)}
 
-        /* ══ SCROLL REVEAL ════════════════════════════════════════════════════ */
-        .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s cubic-bezier(.4,0,.2,1),transform .6s cubic-bezier(.4,0,.2,1)}
+        .reveal{opacity:0;transform:translateY(22px);transition:opacity .58s cubic-bezier(.4,0,.2,1),transform .58s cubic-bezier(.4,0,.2,1)}
         .reveal.visible{opacity:1;transform:translateY(0)}
-        .reveal-left{opacity:0;transform:translateX(-24px);transition:opacity .55s cubic-bezier(.4,0,.2,1),transform .55s cubic-bezier(.4,0,.2,1)}
+        .reveal-left{opacity:0;transform:translateX(-20px);transition:opacity .52s cubic-bezier(.4,0,.2,1),transform .52s cubic-bezier(.4,0,.2,1)}
         .reveal-left.visible{opacity:1;transform:translateX(0)}
-        .reveal-scale{opacity:0;transform:scale(.9);transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .5s cubic-bezier(.34,1.56,.64,1)}
+        .reveal-scale{opacity:0;transform:scale(.9);transition:opacity .48s cubic-bezier(.4,0,.2,1),transform .48s cubic-bezier(.34,1.56,.64,1)}
         .reveal-scale.visible{opacity:1;transform:scale(1)}
 
-        /* ══ BUTTONS ══════════════════════════════════════════════════════════ */
         .pbtn{
-          background:linear-gradient(135deg,#1a5c1a 0%,#2d8f2d 40%,#4caf50 70%,#38a038 100%);
+          background:linear-gradient(135deg,#8a5500 0%,#c47d10 35%,#f5a623 65%,#e09010 100%);
           background-size:300% 300%;animation:march 5s ease infinite;
-          border:none;color:#fff;padding:13px 30px;border-radius:12px;
-          font-family:'Outfit',sans-serif;font-weight:700;font-size:16px;
+          border:none;color:#07080a;padding:14px 32px;border-radius:8px;
+          font-family:'Instrument Sans',sans-serif;font-weight:700;font-size:15px;
           cursor:pointer;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease;
           position:relative;overflow:hidden;letter-spacing:.3px;
-          box-shadow:0 4px 20px rgba(76,175,80,.35),inset 0 1px 0 rgba(255,255,255,.25);
+          box-shadow:0 4px 20px rgba(245,166,35,.35),inset 0 1px 0 rgba(255,255,255,.28);
         }
-        .pbtn::before{
-          content:'';position:absolute;inset:0;
-          background:radial-gradient(circle at var(--bx,50%) var(--by,50%),rgba(255,255,255,.25),transparent 60%);
-          opacity:0;transition:opacity .3s;
-        }
-        .pbtn::after{
-          content:'';position:absolute;top:0;left:-130%;
-          width:55%;height:100%;
-          background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
-          transform:skewX(-22deg);transition:left .65s cubic-bezier(.4,0,.2,1);
-        }
-        .pbtn:hover{transform:translateY(-4px) scale(1.03);box-shadow:0 16px 44px rgba(76,175,80,.6),inset 0 1px 0 rgba(255,255,255,.3)}
+        .pbtn::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at var(--bx,50%) var(--by,50%),rgba(255,255,255,.28),transparent 60%);opacity:0;transition:opacity .3s}
+        .pbtn::after{content:'';position:absolute;top:0;left:-130%;width:55%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-22deg);transition:left .65s cubic-bezier(.4,0,.2,1)}
+        .pbtn:hover{transform:translateY(-4px) scale(1.03);box-shadow:0 16px 44px rgba(245,166,35,.55),inset 0 1px 0 rgba(255,255,255,.3)}
         .pbtn:hover::before{opacity:1}
         .pbtn:hover::after{left:165%}
         .pbtn:active{transform:translateY(-1px) scale(.99);transition-duration:.1s}
-        .pbtn:disabled{opacity:.3;cursor:not-allowed;transform:none;animation:none}
+        .pbtn:disabled{opacity:.28;cursor:not-allowed;transform:none;animation:none}
 
         .gbtn{
-          background:rgba(76,175,80,.07);border:1px solid rgba(76,175,80,.3);
-          color:var(--g);padding:12px 22px;border-radius:12px;
-          font-family:'Outfit',sans-serif;font-weight:600;cursor:pointer;
+          background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.28);
+          color:var(--g);padding:13px 24px;border-radius:8px;
+          font-family:'Instrument Sans',sans-serif;font-weight:600;cursor:pointer;
           transition:all .28s cubic-bezier(.34,1.56,.64,1);
-          font-size:15px;letter-spacing:.2px;position:relative;overflow:hidden;
+          font-size:14px;letter-spacing:.2px;position:relative;overflow:hidden;
         }
-        .gbtn::before{
-          content:'';position:absolute;inset:0;
-          background:radial-gradient(circle at var(--bx,50%) var(--by,50%),rgba(76,175,80,.18),transparent 65%);
-          opacity:0;transition:opacity .25s;
-        }
-        .gbtn:hover{background:rgba(76,175,80,.14);border-color:var(--g2);color:var(--txt);transform:translateY(-3px) scale(1.03);box-shadow:0 10px 32px rgba(76,175,80,.25)}
+        .gbtn::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at var(--bx,50%) var(--by,50%),rgba(245,166,35,.18),transparent 65%);opacity:0;transition:opacity .25s}
+        .gbtn:hover{background:rgba(245,166,35,.12);border-color:var(--g2);color:var(--txt);transform:translateY(-3px) scale(1.03);box-shadow:0 10px 32px rgba(245,166,35,.22)}
         .gbtn:hover::before{opacity:1}
         .gbtn:active{transform:translateY(0) scale(1)}
+        .gbtn:disabled{opacity:.3;cursor:not-allowed}
 
         .skbtn{
-          background:transparent;border:1px solid rgba(76,175,80,.25);
-          color:var(--mut);padding:8px 16px;border-radius:10px;
-          font-family:'Outfit',sans-serif;font-weight:500;
+          background:transparent;border:1px solid rgba(245,166,35,.22);
+          color:var(--mut);padding:9px 18px;border-radius:7px;
+          font-family:'IBM Plex Mono',monospace;font-weight:600;
           cursor:pointer;font-size:12px;transition:all .2s cubic-bezier(.34,1.56,.64,1);
         }
-        .skbtn:hover{border-color:var(--g);color:var(--g);background:rgba(76,175,80,.06);transform:translateY(-2px) scale(1.02)}
+        .skbtn:hover{border-color:var(--g);color:var(--g);background:rgba(245,166,35,.07);transform:translateY(-2px) scale(1.02)}
 
-        /* Ripple effect */
         .ripple-wrap{position:relative;overflow:hidden}
-        .ripple-wrap .rip{
-          position:absolute;border-radius:50%;
-          background:rgba(76,175,80,.25);
-          pointer-events:none;
-          animation:ripple .6s ease-out forwards;
-          transform:scale(0);
-        }
+        .ripple-wrap .rip{position:absolute;border-radius:50%;background:rgba(245,166,35,.28);pointer-events:none;animation:ripple .6s ease-out forwards;transform:scale(0)}
 
-        /* ══ NAV TABS ══════════════════════════════════════════════════════════ */
         .tbtn{
           background:none;border:none;cursor:pointer;
-          padding:9px 14px;font-family:'Outfit',sans-serif;
-          font-weight:600;font-size:14px;
+          padding:10px 16px;font-family:'Instrument Sans',sans-serif;
+          font-weight:600;font-size:13px;
           color:var(--mut);position:relative;letter-spacing:.2px;white-space:nowrap;
           transition:color .2s ease;
         }
-        .tbtn::before{
-          content:'';position:absolute;bottom:-1px;left:50%;right:50%;
-          height:2px;background:var(--g);border-radius:2px 2px 0 0;
-          transition:left .3s cubic-bezier(.34,1.56,.64,1),right .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s;
-        }
-        .tbtn::after{
-          content:'';position:absolute;inset:6px;border-radius:8px;
-          background:rgba(76,175,80,.0);
-          transition:background .2s;
-        }
+        .tbtn::before{content:'';position:absolute;bottom:-1px;left:50%;right:50%;height:2px;background:var(--g);border-radius:2px 2px 0 0;transition:left .3s cubic-bezier(.34,1.56,.64,1),right .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s}
+        .tbtn::after{content:'';position:absolute;inset:5px;border-radius:7px;background:rgba(245,166,35,.0);transition:background .2s}
         .tbtn:hover{color:var(--g2)}
         .tbtn:hover::before{left:8%;right:8%}
-        .tbtn:hover::after{background:rgba(76,175,80,.07)}
-        .tbtn-active{color:var(--g) !important;animation:glowText 3s ease-in-out infinite}
-        .tbtn-active::before{left:0 !important;right:0 !important;box-shadow:0 0 8px rgba(76,175,80,.6)}
-        .tbtn-active::after{background:rgba(76,175,80,.09) !important}
+        .tbtn:hover::after{background:rgba(245,166,35,.07)}
+        .tbtn-active{color:var(--g) !important;animation:glowText 3.5s ease-in-out infinite}
+        .tbtn-active::before{left:0 !important;right:0 !important;box-shadow:0 0 8px rgba(245,166,35,.6)}
+        .tbtn-active::after{background:rgba(245,166,35,.08) !important}
 
-        /* ══ BADGE ═════════════════════════════════════════════════════════════ */
-        .badge{
-          background:rgba(76,175,80,.1);border:1px solid rgba(76,175,80,.22);
-          color:var(--g);padding:4px 12px;border-radius:20px;
-          font-size:12px;font-weight:700;display:inline-block;
-          font-family:'JetBrains Mono',monospace;letter-spacing:.5px;
-          transition:all .2s cubic-bezier(.34,1.56,.64,1);
-        }
-        .badge:hover{background:rgba(76,175,80,.2);transform:scale(1.06)}
+        .badge{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.22);color:var(--g);padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;transition:all .2s cubic-bezier(.34,1.56,.64,1)}
+        .badge:hover{background:rgba(245,166,35,.2);transform:scale(1.06)}
 
-        /* ══ INPUTS ════════════════════════════════════════════════════════════ */
-        .ri{width:72px;background:var(--bg);border:1px solid var(--bd2);color:var(--txt);padding:6px 9px;border-radius:9px;font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:all .22s cubic-bezier(.4,0,.2,1)}
-        .ri:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(76,175,80,.14);transform:scale(1.02)}
-        .si{width:100%;background:var(--bg);border:1px solid var(--bd2);color:var(--txt);padding:11px 15px;border-radius:11px;font-family:'Outfit',sans-serif;font-size:13px;outline:none;transition:all .22s cubic-bezier(.4,0,.2,1)}
-        .si:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(76,175,80,.1)}
-        .ci{flex:1;background:var(--bg);border:1px solid var(--bd2);color:var(--txt);padding:11px 15px;border-radius:11px;font-family:'Outfit',sans-serif;font-size:13px;outline:none;transition:all .22s cubic-bezier(.4,0,.2,1)}
-        .ci:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(76,175,80,.1)}
+        .ri{width:76px;background:var(--bg);border:1px solid var(--bd2);color:var(--txt);padding:7px 10px;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:12px;outline:none;transition:all .22s cubic-bezier(.4,0,.2,1)}
+        .ri:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(245,166,35,.14);transform:scale(1.02)}
+        .si{width:100%;background:var(--bg);border:1px solid var(--bd2);color:var(--txt);padding:12px 16px;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-size:14px;outline:none;transition:all .22s cubic-bezier(.4,0,.2,1)}
+        .si:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(245,166,35,.1)}
+        .si::placeholder{color:var(--mut);opacity:.5}
+        .ci{flex:1;background:var(--bg);border:1px solid var(--bd2);color:var(--txt);padding:12px 16px;border-radius:8px;font-family:'Instrument Sans',sans-serif;font-size:14px;outline:none;transition:all .22s cubic-bezier(.4,0,.2,1)}
+        .ci:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(245,166,35,.1)}
+        .ci::placeholder{color:var(--mut);opacity:.5}
 
-        /* ══ CHAT BUBBLES ══════════════════════════════════════════════════════ */
-        .bai{
-          background:var(--bg3);border:1px solid var(--bd);
-          border-radius:16px 16px 16px 3px;padding:13px 16px;max-width:86%;
-          font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--txt);
-          animation:springIn .35s cubic-bezier(.34,1.56,.64,1);
-          box-shadow:0 3px 16px rgba(0,0,0,.1);font-family:'Outfit',sans-serif;
-        }
-        .bau{
-          background:linear-gradient(135deg,#173d17,#256325);
-          border:1px solid rgba(76,175,80,.25);
-          border-radius:16px 16px 3px 16px;padding:13px 16px;max-width:80%;
-          font-size:13px;line-height:1.65;align-self:flex-end;color:#e8f5e9;
-          animation:springIn .3s cubic-bezier(.34,1.56,.64,1);
-          box-shadow:0 4px 22px rgba(76,175,80,.22);font-family:'Outfit',sans-serif;
-        }
+        .bai{background:var(--bg3);border:1px solid var(--bd);border-radius:14px 14px 14px 3px;padding:14px 17px;max-width:86%;font-size:14px;line-height:1.75;white-space:pre-wrap;color:var(--txt);animation:springIn .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 3px 16px rgba(0,0,0,.12);font-family:'Instrument Sans',sans-serif}
+        .bau{background:linear-gradient(135deg,#2a1800,#5a3200);border:1px solid rgba(245,166,35,.28);border-radius:14px 14px 3px 14px;padding:14px 17px;max-width:80%;font-size:14px;line-height:1.65;align-self:flex-end;color:#f5d08a;animation:springIn .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 4px 22px rgba(245,166,35,.2);font-family:'Instrument Sans',sans-serif}
 
-        /* ══ FLOATING BOT ══════════════════════════════════════════════════════ */
         .fbot{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;align-items:flex-end;gap:12px;pointer-events:none}
         .fbot>*{pointer-events:all}
-        .fbot-btn{
-          width:56px;height:56px;border-radius:50%;
-          background:linear-gradient(135deg,#0d3d0d,#4caf50);
-          border:1px solid rgba(76,175,80,.4);color:#fff;
-          font-family:'JetBrains Mono',monospace;font-weight:800;font-size:9px;
-          cursor:pointer;animation:glow 3s ease-in-out infinite;
-          box-shadow:0 6px 28px rgba(76,175,80,.4);
-          transition:transform .35s cubic-bezier(.34,1.8,.64,1),box-shadow .3s;
-          white-space:pre-line;line-height:1.3;
-        }
-        .fbot-btn:hover{transform:scale(1.14) rotate(-7deg);box-shadow:0 14px 44px rgba(76,175,80,.65)}
-        .fbot-win{
-          width:360px;background:var(--bg2);border:1px solid var(--bd2);
-          border-radius:20px;overflow:hidden;max-height:500px;
-          display:flex;flex-direction:column;
-          box-shadow:0 28px 72px rgba(0,0,0,.35),0 0 0 1px rgba(76,175,80,.06);
-          animation:springIn .3s cubic-bezier(.34,1.56,.64,1);
-        }
+        .fbot-btn{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#5a3200,#f5a623);border:1px solid rgba(245,166,35,.45);color:#07080a;font-family:'IBM Plex Mono',monospace;font-weight:800;font-size:9px;cursor:pointer;animation:glow 3s ease-in-out infinite;box-shadow:0 6px 28px rgba(245,166,35,.4);transition:transform .35s cubic-bezier(.34,1.8,.64,1),box-shadow .3s;white-space:pre-line;line-height:1.3}
+        .fbot-btn:hover{transform:scale(1.15) rotate(-8deg);box-shadow:0 14px 44px rgba(245,166,35,.65)}
+        .fbot-win{width:375px;background:var(--bg2);border:1px solid var(--bd2);border-radius:18px;overflow:hidden;max-height:520px;display:flex;flex-direction:column;box-shadow:0 28px 72px rgba(0,0,0,.4),0 0 0 1px rgba(245,166,35,.06);animation:springIn .3s cubic-bezier(.34,1.56,.64,1)}
         .fbot-msgs{overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;flex:1}
-        .fbot-u{background:linear-gradient(135deg,#173d17,#256325);border-radius:13px 13px 3px 13px;padding:9px 13px;max-width:88%;align-self:flex-end;font-size:12px;line-height:1.5;white-space:pre-wrap;color:#e8f5e9;animation:springIn .28s cubic-bezier(.34,1.56,.64,1);font-family:'Outfit',sans-serif}
-        .fbot-a{background:var(--bg3);border:1px solid var(--bd);border-radius:13px 13px 13px 3px;padding:9px 13px;max-width:92%;font-size:12px;line-height:1.5;white-space:pre-wrap;color:var(--txt);animation:springIn .28s cubic-bezier(.34,1.56,.64,1);font-family:'Outfit',sans-serif}
+        .fbot-u{background:linear-gradient(135deg,#2a1800,#5a3200);border-radius:12px 12px 3px 12px;padding:10px 13px;max-width:88%;align-self:flex-end;font-size:13px;line-height:1.55;white-space:pre-wrap;color:#f5d08a;animation:springIn .28s cubic-bezier(.34,1.56,.64,1);font-family:'Instrument Sans',sans-serif}
+        .fbot-a{background:var(--bg3);border:1px solid var(--bd);border-radius:12px 12px 12px 3px;padding:10px 13px;max-width:92%;font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--txt);animation:springIn .28s cubic-bezier(.34,1.56,.64,1);font-family:'Instrument Sans',sans-serif}
 
-        /* ══ HEADER ════════════════════════════════════════════════════════════ */
-        .app-header{
-          padding:0 20px;height:64px;
-          display:flex;align-items:center;justify-content:space-between;
-          flex-shrink:0;gap:8px;position:sticky;top:0;z-index:100;
-          background:var(--bg2);backdrop-filter:blur(28px) saturate(1.5);
-          border-bottom:1px solid var(--bd);
-          transition:background .3s,border-color .3s,box-shadow .3s;
-          animation:fadeDown .35s ease both;
-        }
-        .app-header.scrolled{box-shadow:0 4px 32px rgba(0,0,0,.22)}
+        .app-header{padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;position:sticky;top:0;z-index:100;background:var(--bg2);backdrop-filter:blur(28px) saturate(1.6);border-bottom:1px solid var(--bd);transition:background .3s,border-color .3s,box-shadow .3s}
+        .app-header.scrolled{box-shadow:0 4px 32px rgba(0,0,0,.22),0 0 0 1px rgba(245,166,35,.05)}
 
-        /* ══ LOGO ══════════════════════════════════════════════════════════════ */
-        .logo-icon{
-          width:40px;height:40px;border-radius:11px;
-          background:linear-gradient(135deg,#0d3d0d,#3d9c3d);
-          display:flex;align-items:center;justify-content:center;flex-shrink:0;
-          box-shadow:0 3px 16px rgba(76,175,80,.35),inset 0 1px 0 rgba(255,255,255,.2);
-          transition:transform .35s cubic-bezier(.34,1.8,.64,1),box-shadow .3s;
-          position:relative;overflow:hidden;cursor:pointer;
-        }
+        .logo-icon{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#3a2000,#f5a623);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 3px 16px rgba(245,166,35,.38),inset 0 1px 0 rgba(255,255,255,.22);transition:transform .35s cubic-bezier(.34,1.8,.64,1),box-shadow .3s;position:relative;overflow:hidden;cursor:pointer;font-size:20px}
         .logo-icon::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.22) 0%,transparent 55%)}
-        .logo-icon:hover{transform:rotate(-9deg) scale(1.12);box-shadow:0 8px 32px rgba(76,175,80,.6)}
+        .logo-icon:hover{transform:rotate(-9deg) scale(1.12);box-shadow:0 8px 32px rgba(245,166,35,.6)}
         .logo-icon:active{transform:rotate(-6deg) scale(.96)}
 
-        /* ══ CREDIT BAR ════════════════════════════════════════════════════════ */
-        .credit-bar{
-          background:linear-gradient(90deg,transparent 0%,rgba(76,175,80,.08) 30%,rgba(76,175,80,.08) 70%,transparent 100%);
-          border-bottom:1px solid rgba(76,175,80,.12);
-          padding:9px 48px;display:flex;align-items:center;justify-content:center;gap:16px;
-          flex-shrink:0;position:sticky;top:60px;z-index:99;
-          transition:all .3s;
-          animation:fadeDown .4s .3s both;
-        }
+        .credit-bar{background:var(--bg2);border-bottom:1px solid var(--bd);border-top:1px solid var(--bd);padding:5px 24px;display:flex;align-items:center;justify-content:center;gap:14px;flex-shrink:0;position:sticky;top:64px;z-index:99;backdrop-filter:blur(20px);transition:background .3s}
 
-        /* ══ PAGE ENTER ════════════════════════════════════════════════════════ */
-        .page-enter{animation:fadeUp .4s cubic-bezier(.4,0,.2,1)}
-
-        /* ══ ENHANCED CARD EFFECTS ══════════════════════════════════════════════ */
-        .stat-card::before{
-          content:'';position:absolute;inset:0;border-radius:inherit;
-          background:linear-gradient(135deg,rgba(76,175,80,.06) 0%,transparent 60%);
-          opacity:0;transition:opacity .35s;pointer-events:none;
-        }
-        .stat-card:hover::before{opacity:1}
-        .sel-card::before{
-          content:'';position:absolute;inset:0;border-radius:inherit;
-          background:linear-gradient(135deg,rgba(76,175,80,.08) 0%,transparent 60%);
-          opacity:0;transition:opacity .3s;pointer-events:none;
-        }
-        .sel-card:hover::before{opacity:1}
-        .pbtn{position:relative;overflow:hidden}
-        .pbtn::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.15),transparent);opacity:0;transition:opacity .25s}
-        .pbtn:hover::after{opacity:1}
-        .spec-pill{
-          display:inline-flex;align-items:center;gap:6px;
-          font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;
-          padding:6px 16px;border-radius:100px;letter-spacing:.5px;
-          transition:all .3s cubic-bezier(.34,1.56,.64,1);cursor:default;
-        }
-        .spec-pill:hover{transform:translateY(-3px) scale(1.06);box-shadow:0 8px 20px rgba(76,175,80,.25)}
-        .challenge-tag{
-          display:inline-flex;align-items:center;gap:6px;
-          transition:all .25s cubic-bezier(.34,1.56,.64,1);
-        }
-        .challenge-tag:hover{transform:translateY(-2px) scale(1.04)}
-
-        /* ══ MODAL ══════════════════════════════════════════════════════════════ */
+        .page-enter{animation:fadeUp .38s cubic-bezier(.4,0,.2,1)}
         .modal-overlay{animation:fadeIn .18s ease}
         .modal-box{animation:springIn .3s cubic-bezier(.34,1.56,.64,1)}
 
-        /* ══ SELECTION CARD ════════════════════════════════════════════════════ */
-        .sel-card{border-radius:14px;padding:16px;cursor:pointer;transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .28s;position:relative;overflow:hidden}
+        .sel-card{border-radius:12px;padding:16px;cursor:pointer;transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .28s;position:relative;overflow:hidden}
         .sel-card:hover{transform:translateY(-4px) scale(1.02);box-shadow:0 20px 56px rgba(0,0,0,.28)}
-        .sel-card:active{transform:translateY(-1px) scale(1.01)}
 
-        /* ══ SECTION LABEL ═════════════════════════════════════════════════════ */
-        .sec-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;
-          letter-spacing:4px;color:var(--g);text-transform:uppercase;margin-bottom:16px;
-          display:flex;align-items:center;gap:12px}
-        .sec-lbl::before{content:'';display:block;width:24px;height:1.5px;background:var(--g);flex-shrink:0}
-        .sec-lbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(76,175,80,.4),transparent);animation:lineGrow .8s .2s both}
+        .sec-lbl{font-size:11px;font-family:'IBM Plex Mono',monospace;font-weight:700;letter-spacing:3px;color:var(--g);display:flex;align-items:center;gap:10px;margin-bottom:16px;text-transform:uppercase}
+        .sec-lbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(245,166,35,.4),transparent);animation:lineGrow .8s .2s both}
 
-        /* ══ STAT CARD ══════════════════════════════════════════════════════════ */
-        .stat-card{
-          border-radius:22px;padding:28px 30px;
-          transition:transform .35s cubic-bezier(.34,1.56,.64,1),box-shadow .35s,border-color .35s;
-          position:relative;overflow:hidden;
-          background:var(--bg3);border:1px solid var(--bd);
-          animation:scaleUp .5s both;cursor:default;
-        }
-        .stat-card::after{
-          content:'';position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);
-          width:80px;height:80px;border-radius:50%;
-          background:radial-gradient(circle,rgba(76,175,80,.3),transparent 70%);
-          filter:blur(16px);opacity:0;
-          transition:opacity .4s,bottom .4s;
-        }
-        .stat-card:hover{transform:translateY(-8px) scale(1.03);border-color:rgba(76,175,80,.4);box-shadow:0 24px 64px rgba(0,0,0,.15),0 0 0 1px rgba(76,175,80,.12),0 0 40px rgba(76,175,80,.05)}
+        .stat-card{border-radius:16px;padding:24px 18px;text-align:center;transition:transform .35s cubic-bezier(.34,1.56,.64,1),box-shadow .35s,border-color .35s;position:relative;overflow:hidden;background:var(--bg3);border:1px solid var(--bd);animation:scaleUp .5s both;cursor:default}
+        .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--g),transparent);opacity:.5}
+        .stat-card::after{content:'';position:absolute;bottom:-50px;left:50%;transform:translateX(-50%);width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,rgba(245,166,35,.3),transparent 70%);filter:blur(16px);opacity:0;transition:opacity .4s,bottom .4s}
+        .stat-card:hover{transform:translateY(-8px) scale(1.03);border-color:rgba(245,166,35,.4);box-shadow:0 24px 64px rgba(0,0,0,.18),0 0 0 1px rgba(245,166,35,.12)}
         .stat-card:hover::after{opacity:1;bottom:-20px}
 
-        /* ══ STEP CIRCLE ════════════════════════════════════════════════════════ */
-        .step-circle{
-          width:50px;height:50px;border-radius:50%;
-          background:rgba(76,175,80,.07);border:2px solid rgba(76,175,80,.2);
-          display:flex;align-items:center;justify-content:center;
-          margin:0 auto 16px;font-family:'JetBrains Mono',monospace;
-          font-size:13px;font-weight:800;color:var(--g);
-          transition:all .35s cubic-bezier(.34,1.8,.64,1);
-        }
-        .step-circle:hover{background:var(--g);color:#000;border-color:var(--g);transform:scale(1.2) rotate(5deg);box-shadow:0 0 0 6px rgba(76,175,80,.12),0 0 32px rgba(76,175,80,.45)}
+        .step-circle{width:52px;height:52px;border-radius:50%;background:rgba(245,166,35,.07);border:2px solid rgba(245,166,35,.22);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:800;color:var(--g);transition:all .35s cubic-bezier(.34,1.8,.64,1)}
+        .step-circle:hover{background:var(--g);color:#07080a;border-color:var(--g);transform:scale(1.2) rotate(5deg);box-shadow:0 0 0 6px rgba(245,166,35,.12),0 0 32px rgba(245,166,35,.45)}
 
-        /* ══ PROGRESS STEPS ═════════════════════════════════════════════════════ */
         .prog-step{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;cursor:pointer;transition:all .28s cubic-bezier(.34,1.56,.64,1)}
-        .prog-step:hover{transform:scale(1.2);box-shadow:0 0 12px rgba(76,175,80,.4)}
+        .prog-step:hover{transform:scale(1.2);box-shadow:0 0 12px rgba(245,166,35,.4)}
 
-        /* ══ CHALLENGE BANNER ═══════════════════════════════════════════════════ */
-        .challenge-banner{
-          position:relative;overflow:hidden;border-radius:0;
-          background:rgba(76,175,80,.05);border:none;
-          border-top:1px solid rgba(76,175,80,.18);border-bottom:1px solid rgba(76,175,80,.18);
-          padding:44px clamp(24px,7vw,100px);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:24px;
-          animation:borderPulse 4s ease-in-out infinite;
-        }
-        .challenge-banner::before{
-          content:'';position:absolute;top:0;left:0;right:0;height:1px;
-          background:linear-gradient(90deg,transparent,rgba(76,175,80,.95),transparent);
-          animation:shimmer 3.5s ease-in-out infinite;background-size:400% auto;
-        }
-        .challenge-banner::after{
-          content:'';position:absolute;top:-40px;right:-40px;
-          width:180px;height:180px;border-radius:50%;
-          background:radial-gradient(circle,rgba(76,175,80,.08),transparent 70%);
-          pointer-events:none;
-        }
+        .challenge-banner{position:relative;overflow:hidden;border-radius:18px;background:rgba(245,166,35,.04);border:1px solid rgba(245,166,35,.18);padding:28px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;animation:borderPulse 4s ease-in-out infinite}
+        .challenge-banner::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(245,166,35,.9),transparent);animation:shimmer 3.5s ease-in-out infinite;background-size:400% auto}
+        .challenge-banner::after{content:'';position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(245,166,35,.08),transparent 70%);pointer-events:none}
 
-        /* ══ FEAT CARD ══════════════════════════════════════════════════════════ */
-        .feat-card{
-          border-radius:20px;padding:28px 26px;cursor:pointer;
-          position:relative;overflow:hidden;
-          background:var(--bg3);border:1px solid var(--bd);
-          transition:transform .35s cubic-bezier(.34,1.56,.64,1),box-shadow .35s,border-color .35s,background .3s;
-        }
-        .feat-card::before{
-          content:'';position:absolute;top:0;left:0;right:0;height:1px;
-          background:linear-gradient(90deg,transparent,rgba(76,175,80,.5),transparent);
-          transform:scaleX(0);transform-origin:left;
-          transition:transform .4s cubic-bezier(.4,0,.2,1);
-        }
-        .feat-card:hover{transform:translateY(-7px) scale(1.02);border-color:rgba(76,175,80,.3);background:rgba(76,175,80,.055);box-shadow:0 16px 44px rgba(0,0,0,.1),0 0 0 1px rgba(76,175,80,.14),0 0 30px rgba(76,175,80,.04)}
+        .feat-card{border-radius:16px;padding:22px 20px;cursor:pointer;position:relative;overflow:hidden;background:var(--bg3);border:1px solid var(--bd);transition:transform .35s cubic-bezier(.34,1.56,.64,1),box-shadow .35s,border-color .35s,background .3s}
+        .feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(245,166,35,.55),transparent);transform:scaleX(0);transform-origin:left;transition:transform .4s cubic-bezier(.4,0,.2,1)}
+        .feat-card:hover{transform:translateY(-6px) scale(1.02);border-color:rgba(245,166,35,.3);background:rgba(245,166,35,.05);box-shadow:0 16px 44px rgba(0,0,0,.12),0 0 0 1px rgba(245,166,35,.14)}
         .feat-card:hover::before{transform:scaleX(1)}
-        .feat-icon-wrap{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;background:rgba(76,175,80,.1);border:1px solid rgba(76,175,80,.2);transition:all .35s cubic-bezier(.34,1.56,.64,1)}
-        .feat-card:hover .feat-icon-wrap{background:rgba(76,175,80,.22);transform:scale(1.1) rotate(-5deg);box-shadow:0 0 18px rgba(76,175,80,.28)}
+        .feat-icon-wrap{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.2);transition:all .35s cubic-bezier(.34,1.56,.64,1)}
+        .feat-card:hover .feat-icon-wrap{background:rgba(245,166,35,.22);transform:scale(1.1) rotate(-5deg);box-shadow:0 0 18px rgba(245,166,35,.28)}
 
-        /* ══ TILT CARD (3D hover) ════════════════════════════════════════════════ */
-        .tilt{
-          transform-style:preserve-3d;
-          transition:transform .12s ease-out;
-          will-change:transform;
-        }
+        .tilt{transform-style:preserve-3d;transition:transform .12s ease-out;will-change:transform}
 
-        /* ══ HOW STEP ═══════════════════════════════════════════════════════════ */
         .how-step{text-align:center;padding:0 12px;position:relative;z-index:1}
         .how-step:nth-child(1){animation:fadeUp .5s .00s both}
         .how-step:nth-child(2){animation:fadeUp .5s .08s both}
@@ -1836,186 +1659,69 @@ void loop() {
         .how-step:nth-child(4){animation:fadeUp .5s .24s both}
         .how-step:nth-child(5){animation:fadeUp .5s .32s both}
 
-        /* ══ FEAT ROW (homepage list item) ══════════════════════════════════════ */
-        .feat-row{
-          display:flex;align-items:flex-start;gap:12px;
-          padding:13px 14px;border-radius:12px;
-          background:rgba(76,175,80,.0);border:1px solid transparent;
-          transition:background .22s,border-color .22s,transform .22s cubic-bezier(.34,1.56,.64,1);
-        }
-        .feat-row:hover{background:rgba(76,175,80,.07);border-color:rgba(76,175,80,.22);transform:translateX(4px)}
+        .feat-row{display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border-radius:11px;background:rgba(245,166,35,.0);border:1px solid transparent;transition:background .22s,border-color .22s,transform .22s cubic-bezier(.34,1.56,.64,1)}
+        .feat-row:hover{background:rgba(245,166,35,.07);border-color:rgba(245,166,35,.22);transform:translateX(4px)}
         .feat-row:active{transform:translateX(2px) scale(.99)}
 
         strong{color:var(--g)}
 
-        /* ══ BLEED — full-width sections that escape page-pad ═══════════════════ */
-        .bleed{margin-left:-52px;margin-right:-52px}
-        @media(max-width:1024px){.bleed{margin-left:-36px;margin-right:-36px}}
-        @media(max-width:768px){.bleed{margin-left:-20px;margin-right:-20px}}
-        @media(max-width:600px){.bleed{margin-left:-16px;margin-right:-16px}}
-        @media(max-width:480px){.bleed{margin-left:-12px;margin-right:-12px}}
-        @media(max-width:360px){.bleed{margin-left:-10px;margin-right:-10px}}
-
-        /* ══ GRIDS ═══════════════════════════════════════════════════════════════ */
-        .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-        .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-        .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+        .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+        .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+        .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
         .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:0;position:relative}
         .grid-compare{display:grid;grid-template-columns:140px 1fr 1fr}
-        .page-pad{padding:32px 52px 52px}
+        .page-pad{padding:28px 36px}
         .header-nav{display:flex;align-items:center;gap:10px}
 
-        /* ══ HAMBURGER / MOBILE NAV ═══════════════════════════════════════════════ */
-        .desktop-nav{display:flex;align-items:center;gap:10px}
-        .mobile-nav-right{display:none;align-items:center;gap:8px}
-        .hamburger{
-          display:flex;flex-direction:column;justify-content:center;align-items:center;
-          width:38px;height:38px;gap:5px;cursor:pointer;
-          background:rgba(76,175,80,.1);border:1px solid rgba(76,175,80,.25);border-radius:10px;
-          transition:all .2s;flex-shrink:0;padding:0;
-        }
-        .hamburger:hover{background:rgba(76,175,80,.2)}
-        .ham-line{
-          display:block;width:18px;height:2px;border-radius:2px;
-          background:currentColor;transition:transform .25s,opacity .25s;
-        }
-        .ham-line.open:first-child{transform:translateY(7px) rotate(45deg)}
-        .ham-line.mid.open{opacity:0;transform:scaleX(0)}
-        .ham-line.open:last-child{transform:translateY(-7px) rotate(-45deg)}
-        .mobile-menu{
-          position:sticky;top:64px;z-index:99;
-          display:flex;flex-direction:column;
-          background:var(--bg2);border-bottom:1px solid var(--bd);
-          box-shadow:0 8px 32px rgba(0,0,0,.18);
-          animation:fadeDown .2s ease both;
-        }
-        .mobile-menu-item{
-          display:flex;align-items:center;gap:12px;
-          padding:14px 20px;font-size:15px;font-weight:600;
-          color:var(--txt);background:transparent;border:none;border-bottom:1px solid var(--bd);
-          cursor:pointer;text-align:left;font-family:'Outfit',sans-serif;letter-spacing:-.2px;
-          transition:background .15s;
-        }
-        .mobile-menu-item:hover{background:rgba(76,175,80,.07)}
-        .mobile-menu-item.active{color:var(--g);background:rgba(76,175,80,.06)}
-        .mobile-menu-item:last-child{border-bottom:none}
-
-        /* ══ RESPONSIVE ═══════════════════════════════════════════════════════════ */
-
-        /* ── Code sub-tabs: scrollable on small screens ── */
-        .code-tabs-bar{
-          display:flex;gap:0;border-bottom:1px solid var(--bd);
-          overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
-          flex-shrink:0;
-        }
-        .code-tabs-bar::-webkit-scrollbar{display:none}
-        .code-tabs-bar .tbtn{flex-shrink:0}
-
-        /* ── Sensor/actuator cards wrap nicely ── */
-        .sensor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-        .mcu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
-
-        /* ── Step progress bar ── */
-        .step-bar{display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none}
-        .step-bar::-webkit-scrollbar{display:none}
-
-        /* Tablet — 1024px */
-        @media(max-width:1024px){
-          .page-pad{padding:28px 36px 40px}
-          .grid-4{grid-template-columns:repeat(2,1fr)}
-          .sensor-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
-        }
-
-        /* Tablet portrait — 768px: hamburger on */
         @media(max-width:768px){
-          .desktop-nav{display:none}
-          .mobile-nav-right{display:flex}
-          .mobile-menu{top:56px}
           .grid-4{grid-template-columns:repeat(2,1fr)}
           .grid-3{grid-template-columns:repeat(2,1fr)}
           .grid-5{grid-template-columns:repeat(3,1fr);gap:8px}
           .grid-5 .step-connector{display:none}
           .grid-compare{grid-template-columns:90px 1fr 1fr;font-size:11px}
-          .page-pad{padding:20px 20px 28px}
+          .page-pad{padding:18px 16px}
           .header-divider{display:none}
-          .tbtn{padding:7px 10px;font-size:12px}
-          .fbot-win{width:calc(100vw - 28px);max-width:360px}
-          .challenge-banner{padding:28px 20px}
-          .app-header{padding:0 16px;height:56px}
-          .credit-bar{font-size:10px;gap:8px}
-          .sensor-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
-          .mcu-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+          .header-nav{gap:4px}
+          .tbtn{padding:7px 9px;font-size:12px}
+          .fbot-win{width:calc(100vw - 28px);max-width:375px}
         }
-
-        /* Mobile — 600px */
-        @media(max-width:600px){
-          .page-pad{padding:16px 14px 24px}
-          .grid-4{grid-template-columns:repeat(2,1fr);gap:10px}
-          .grid-3{grid-template-columns:1fr}
-          .grid-2{grid-template-columns:1fr}
-          .grid-5{grid-template-columns:repeat(2,1fr);gap:8px}
-          .grid-compare{grid-template-columns:70px 1fr 1fr;font-size:10px}
-          .tbtn{padding:6px 8px;font-size:11px;letter-spacing:0}
-          .fbot{bottom:12px;right:12px}
-          .fbot-win{width:calc(100vw - 24px);max-height:70vh}
-          .bai,.bau{max-width:95%}
-          .stat-card{padding:16px 12px}
-          .feat-row{padding:10px 10px}
-          .app-header{padding:0 12px;height:52px}
-          .credit-bar{padding:4px 12px;gap:6px;font-size:9px}
-          .challenge-banner{padding:20px 16px;flex-direction:column;align-items:flex-start}
-          .sensor-grid{grid-template-columns:1fr 1fr}
-          .mcu-grid{grid-template-columns:1fr 1fr}
-          .code-tabs-bar .tbtn{font-size:10px;padding:5px 8px}
-        }
-
-        /* Small mobile — 480px */
         @media(max-width:480px){
           .grid-4{grid-template-columns:repeat(2,1fr);gap:8px}
           .grid-3{grid-template-columns:1fr}
           .grid-2{grid-template-columns:1fr}
-          .grid-5{grid-template-columns:repeat(2,1fr);gap:6px}
-          .tbtn{padding:5px 7px;font-size:11px}
-          .stat-card{padding:14px 10px}
-          .page-pad{padding:14px 12px 20px}
-          .ri{width:54px;font-size:12px}
-          .sensor-grid{grid-template-columns:1fr 1fr;gap:8px}
-          .mcu-grid{grid-template-columns:1fr 1fr}
-          .fbot{bottom:10px;right:10px}
-          .fbot-win{width:calc(100vw - 20px);border-radius:14px}
-          .credit-dua{display:none}
+          .grid-5{grid-template-columns:repeat(2,1fr);gap:8px}
+          .grid-compare{grid-template-columns:1fr;font-size:11px}
+          .page-pad{padding:14px 12px}
+          .header-nav{gap:2px}
+          .tbtn{padding:6px 7px;font-size:11px}
+          .fbot{bottom:12px;right:12px}
+          .fbot-win{width:calc(100vw - 24px)}
+          .bai,.bau{max-width:95%}
+          .stat-card{padding:16px 10px}
+          .app-header{padding:0 14px}
+          .credit-bar{padding:4px 12px;gap:8px;font-size:9px}
+          .challenge-banner{padding:20px 18px}
         }
-
-        /* Very small — 360px */
         @media(max-width:360px){
           .tbtn{padding:5px 6px;font-size:10px;letter-spacing:0}
-          .stat-card{padding:12px 8px}
-          .page-pad{padding:12px 10px 16px}
-          .grid-4{grid-template-columns:1fr 1fr;gap:6px}
-          .app-header{padding:0 10px}
-          .ri{width:48px;padding:5px 6px;font-size:11px}
-          .credit-sep,.credit-dua{display:none}
-          .sensor-grid{grid-template-columns:1fr}
-          .mcu-grid{grid-template-columns:1fr 1fr}
-          .fbot-win{border-radius:12px}
-          .code-tabs-bar .tbtn{font-size:9px;padding:5px 6px}
+          .stat-card{padding:14px 8px}
         }
-      `}</style>
+        @media(max-width:360px){.bleed{margin-left:-10px;margin-right:-10px}}`}</style>
 
           {/* ── HEADER ─────────────────────────────────────────────────────────── */}
           <div className="app-header">
             {/* Logo */}
             <div style={{ display: "flex", alignItems: "center", cursor: "pointer", flexShrink: 0, gap: 10 }} onClick={() => { setStep(0); setMainTab("gen"); setMenuOpen(false); }}>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-1.5px", fontFamily: "'Outfit',sans-serif", color: darkMode ? "#6fcf74" : "#1b5e20", lineHeight: 1 }}>Falla7</div>
-                <div style={{ fontSize: 8, color: "rgba(76,175,80,.55)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "3px", fontWeight: 700, marginTop: 2, textTransform: "uppercase" }}>Capstone Toolkit</div>
+                <div style={{ fontWeight: 800, fontSize: 24, letterSpacing: "-1.5px", fontFamily: "'Instrument Sans',sans-serif", color: darkMode ? "#6fcf74" : "#8a5500", lineHeight: 1 }}>Falla7</div>
+                <div style={{ fontSize: 8, color: "rgba(245,166,35,.55)", fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "3px", fontWeight: 700, marginTop: 2, textTransform: "uppercase" }}>Capstone Toolkit</div>
               </div>
             </div>
 
             {/* Desktop nav */}
             <div className="header-nav desktop-nav">
               <div style={{ display: "flex", gap: 2, flexWrap: "nowrap" }}>
-                {[["gen", "Code Gen"], ["chat", "AI Chat"], ["trouble", "Debug"], ["tools", "Tools"], ["compare", "Compare"], ["learn", "Learn"], ["resources", "Resources"]].map(([t, lbl], i) => (
+                {[["gen", "Code Gen"], ["dash", "Dashboard"], ["chat", "AI Chat"], ["trouble", "Debug"], ["tools", "Tools"], ["compare", "Compare"], ["learn", "Learn"], ["resources", "Resources"]].map(([t, lbl], i) => (
                   <button key={t} className={"tbtn" + (mainTab === t ? " tbtn-active" : "")}
                     onClick={() => setMainTab(t)}
                     style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, letterSpacing: "-.2px" }}>
@@ -2024,7 +1730,7 @@ void loop() {
                 ))}
               </div>
               <button onClick={() => setDarkMode(d => !d)}
-                style={{ background: "rgba(76,175,80,.1)", border: "1px solid rgba(76,175,80,.25)", borderRadius: 10, padding: "7px 14px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: darkMode ? "#6fcf74" : "#1b5e20", fontWeight: 800, flexShrink: 0, letterSpacing: "1px", transition: "all .2s" }}>
+                style={{ background: "rgba(245,166,35,.1)", border: "1px solid rgba(245,166,35,.25)", borderRadius: 10, padding: "7px 14px", cursor: "pointer", fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: darkMode ? "#6fcf74" : "#8a5500", fontWeight: 800, flexShrink: 0, letterSpacing: "1px", transition: "all .2s" }}>
                 {darkMode ? "LIGHT" : "DARK"}
               </button>
             </div>
@@ -2032,7 +1738,7 @@ void loop() {
             {/* Mobile right: dark toggle + hamburger */}
             <div className="mobile-nav-right">
               <button onClick={() => setDarkMode(d => !d)}
-                style={{ background: "rgba(76,175,80,.1)", border: "1px solid rgba(76,175,80,.25)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: darkMode ? "#6fcf74" : "#1b5e20", fontWeight: 800, letterSpacing: "1px" }}>
+                style={{ background: "rgba(245,166,35,.1)", border: "1px solid rgba(245,166,35,.25)", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontFamily: "'IBM Plex Mono',monospace", fontSize: 9, color: darkMode ? "#6fcf74" : "#8a5500", fontWeight: 800, letterSpacing: "1px" }}>
                 {darkMode ? "☀" : "🌙"}
               </button>
               <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
@@ -2046,7 +1752,7 @@ void loop() {
           {/* Mobile dropdown menu */}
           {menuOpen && (
             <div className="mobile-menu">
-              {[["gen", "Code Gen"], ["chat", "AI Chat"], ["trouble", "Debug"], ["tools", "Tools"], ["compare", "Compare"], ["learn", "Learn"], ["resources", "Resources"]].map(([t, lbl]) => (
+              {[["gen", "Code Gen"], ["dash", "Dashboard"], ["chat", "AI Chat"], ["trouble", "Debug"], ["tools", "Tools"], ["compare", "Compare"], ["learn", "Learn"], ["resources", "Resources"]].map(([t, lbl]) => (
                 <button key={t} className={"mobile-menu-item" + (mainTab === t ? " active" : "")}
                   onClick={() => { setMainTab(t); setMenuOpen(false); }}>
                   {lbl}
@@ -2060,14 +1766,14 @@ void loop() {
           <div className="credit-bar">
             <div style={{
               width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-              background: darkMode ? "#00e676" : "#2e7d32",
-              boxShadow: darkMode ? "0 0 8px rgba(0,230,118,.9)" : "0 0 5px rgba(46,125,50,.7)",
+              background: darkMode ? "#f5a623" : "#c47d10",
+              boxShadow: darkMode ? "0 0 8px rgba(0,230,118,.9)" : "0 0 5px rgba(196,125,16,.7)",
               animation: "pulseDot 2.5s ease-in-out infinite"
             }} />
-            <span style={{ fontSize: 11, color: MUT, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "1.5px" }}>BUILT BY</span>
-            <span style={{ fontSize: 14, fontWeight: 800, color: TXT, fontFamily: "'Outfit',sans-serif", letterSpacing: "-.3px" }}>Khaled Mohammed</span>
+            <span style={{ fontSize: 11, color: MUT, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "1.5px" }}>BUILT BY</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: TXT, fontFamily: "'Instrument Sans',sans-serif", letterSpacing: "-.3px" }}>Khaled Mohammed</span>
             <span style={{ color: MUT, fontSize: 14, fontWeight: 300, padding: "0 2px" }}>|</span>
-            <span style={{ fontSize: 12, fontWeight: 800, color: G, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "1.5px" }}>STEM ALEX S27</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: G, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "1.5px" }}>STEM ALEX S27</span>
             <span className="credit-sep" style={{ color: MUT, fontSize: 14, fontWeight: 300, padding: "0 2px" }}>|</span>
             <span className="credit-dua" style={{ fontSize: 14, color: TXT, fontFamily: "serif", fontStyle: "italic" }}>دعواتكم</span>
           </div>
@@ -2113,7 +1819,7 @@ void loop() {
                       {/* Grid texture */}
                       <div style={{
                         position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-                        backgroundImage: "linear-gradient(" + (darkMode ? "rgba(76,175,80,.035)" : "rgba(76,175,80,.07)") + " 1px,transparent 1px),linear-gradient(90deg," + (darkMode ? "rgba(76,175,80,.035)" : "rgba(76,175,80,.07)") + " 1px,transparent 1px)",
+                        backgroundImage: "linear-gradient(" + (darkMode ? "rgba(245,166,35,.035)" : "rgba(245,166,35,.07)") + " 1px,transparent 1px),linear-gradient(90deg," + (darkMode ? "rgba(245,166,35,.035)" : "rgba(245,166,35,.07)") + " 1px,transparent 1px)",
                         backgroundSize: "56px 56px"
                       }} />
 
@@ -2122,8 +1828,8 @@ void loop() {
                         position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
                         width: "100%", height: "100%", pointerEvents: "none", zIndex: 0,
                         background: darkMode
-                          ? "radial-gradient(ellipse 80% 60% at 50% 50%,rgba(76,175,80,.11) 0%,transparent 70%)"
-                          : "radial-gradient(ellipse 80% 60% at 50% 50%,rgba(76,175,80,.09) 0%,transparent 70%)"
+                          ? "radial-gradient(ellipse 80% 60% at 50% 50%,rgba(245,166,35,.11) 0%,transparent 70%)"
+                          : "radial-gradient(ellipse 80% 60% at 50% 50%,rgba(245,166,35,.09) 0%,transparent 70%)"
                       }} />
 
                       {/* Vertical grid lines — full height decorative */}
@@ -2131,7 +1837,7 @@ void loop() {
                         <div key={i} style={{
                           position: "absolute", top: 0, bottom: 0, width: 1, left: (i * 14 + 1) + "%",
                           pointerEvents: "none", zIndex: 0,
-                          background: "linear-gradient(180deg,transparent 0%,rgba(76,175,80," + (darkMode ? .025 : .04) + ") 25%,rgba(76,175,80," + (darkMode ? .05 : .08) + ") 55%,rgba(76,175,80," + (darkMode ? .025 : .04) + ") 80%,transparent 100%)"
+                          background: "linear-gradient(180deg,transparent 0%,rgba(245,166,35," + (darkMode ? .025 : .04) + ") 25%,rgba(245,166,35," + (darkMode ? .05 : .08) + ") 55%,rgba(245,166,35," + (darkMode ? .025 : .04) + ") 80%,transparent 100%)"
                         }} />
                       ))}
 
@@ -2140,7 +1846,7 @@ void loop() {
                         <div key={ri} style={{
                           position: "absolute", top: "42%", left: "50%",
                           transform: "translate(-50%,-50%)", width: sz, height: sz, borderRadius: "50%",
-                          border: "1px solid " + (darkMode ? "rgba(76,175,80,.045)" : "rgba(76,175,80,.07)"),
+                          border: "1px solid " + (darkMode ? "rgba(245,166,35,.045)" : "rgba(245,166,35,.07)"),
                           pointerEvents: "none", zIndex: 0,
                           animation: "glow " + (5 + ri * 1.8) + "s " + (ri * 1.2) + "s ease-in-out infinite"
                         }} />
@@ -2153,11 +1859,11 @@ void loop() {
                           width: [3, 4, 3, 5, 2, 4, 3, 5, 2, 4, 3, 5, 4, 3, 2, 5, 3, 4, 2, 4][i],
                           height: [3, 4, 3, 5, 2, 4, 3, 5, 2, 4, 3, 5, 4, 3, 2, 5, 3, 4, 2, 4][i],
                           borderRadius: "50%",
-                          background: darkMode ? "rgba(76,175,80,.45)" : "rgba(76,175,80,.35)",
+                          background: darkMode ? "rgba(245,166,35,.45)" : "rgba(245,166,35,.35)",
                           left: [4, 11, 20, 31, 42, 53, 63, 74, 84, 92, 7, 17, 37, 49, 61, 71, 81, 27, 57, 88][i] + "%",
                           top: [8, 52, 18, 72, 6, 42, 28, 68, 14, 58, 82, 33, 88, 23, 63, 48, 38, 78, 4, 92][i] + "%",
                           animation: "particleFloat " + (3.0 + i * .48) + "s " + (i * .32) + "s ease-in-out infinite",
-                          boxShadow: "0 0 " + (4 + i * 1.1) + "px rgba(76,175,80,.32)"
+                          boxShadow: "0 0 " + (4 + i * 1.1) + "px rgba(245,166,35,.32)"
                         }} />
                       ))}
 
@@ -2165,8 +1871,8 @@ void loop() {
                       <div style={{
                         position: "absolute", left: 0, right: 0, height: 2, pointerEvents: "none", zIndex: 1,
                         background: darkMode
-                          ? "linear-gradient(90deg,transparent 0%,rgba(76,175,80,.0) 20%,rgba(76,175,80,.3) 50%,rgba(129,199,132,.2) 65%,transparent 100%)"
-                          : "linear-gradient(90deg,transparent 0%,rgba(76,175,80,.0) 20%,rgba(76,175,80,.2) 50%,rgba(76,175,80,.12) 65%,transparent 100%)",
+                          ? "linear-gradient(90deg,transparent 0%,rgba(245,166,35,.0) 20%,rgba(245,166,35,.3) 50%,rgba(129,199,132,.2) 65%,transparent 100%)"
+                          : "linear-gradient(90deg,transparent 0%,rgba(245,166,35,.0) 20%,rgba(245,166,35,.2) 50%,rgba(245,166,35,.12) 65%,transparent 100%)",
                         animation: "scanLine 11s linear infinite"
                       }} />
 
@@ -2180,19 +1886,19 @@ void loop() {
                         {/* Live badge */}
                         <div style={{
                           display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 32,
-                          background: darkMode ? "rgba(76,175,80,.07)" : "rgba(76,175,80,.11)",
-                          border: "1px solid " + (darkMode ? "rgba(76,175,80,.22)" : "rgba(76,175,80,.3)"),
+                          background: darkMode ? "rgba(245,166,35,.07)" : "rgba(245,166,35,.11)",
+                          border: "1px solid " + (darkMode ? "rgba(245,166,35,.22)" : "rgba(245,166,35,.3)"),
                           borderRadius: 100, padding: "8px 22px",
                           animation: "fadeUp .45s .05s both",
-                          boxShadow: darkMode ? "0 0 24px rgba(76,175,80,.07)" : "none"
+                          boxShadow: darkMode ? "0 0 24px rgba(245,166,35,.07)" : "none"
                         }}>
                           <div style={{
-                            width: 7, height: 7, borderRadius: "50%", background: "#4caf50",
-                            boxShadow: "0 0 12px rgba(76,175,80,.95)", animation: "pulseDot 2s ease-in-out infinite", flexShrink: 0
+                            width: 7, height: 7, borderRadius: "50%", background: "#f5a623",
+                            boxShadow: "0 0 12px rgba(245,166,35,.95)", animation: "pulseDot 2s ease-in-out infinite", flexShrink: 0
                           }} />
                           <span style={{
-                            fontSize: 11, fontFamily: "'JetBrains Mono',monospace",
-                            color: darkMode ? "rgba(76,175,80,.95)" : "#1b5e20", letterSpacing: "3px", fontWeight: 800
+                            fontSize: 11, fontFamily: "'IBM Plex Mono',monospace",
+                            color: darkMode ? "rgba(245,166,35,.95)" : "#8a5500", letterSpacing: "3px", fontWeight: 800
                           }}>
                             CAPSTONE CHALLENGE 2025–2026
                           </span>
@@ -2202,21 +1908,21 @@ void loop() {
                         <div style={{ marginBottom: 28, animation: "fadeUp .6s .1s both" }}>
                           <div style={{
                             fontSize: "clamp(88px,14vw,190px)", fontWeight: 900, lineHeight: .85,
-                            letterSpacing: "-7px", fontFamily: "'Outfit',sans-serif",
-                            color: darkMode ? "#4caf50" : "#185e18",
+                            letterSpacing: "-7px", fontFamily: "'Instrument Sans',sans-serif",
+                            color: darkMode ? "#f5a623" : "#185e18",
                             animation: "glowText 5s 1s ease-in-out infinite",
-                            textShadow: darkMode ? "0 0 60px rgba(76,175,80,.18),0 0 120px rgba(76,175,80,.08)" : "none"
+                            textShadow: darkMode ? "0 0 60px rgba(245,166,35,.18),0 0 120px rgba(245,166,35,.08)" : "none"
                           }}>Falla7</div>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 16 }}>
-                            <div style={{ height: 1, width: 52, background: darkMode ? "rgba(76,175,80,.35)" : "rgba(76,175,80,.4)", borderRadius: 2, animation: "lineGrow .9s .5s both" }} />
+                            <div style={{ height: 1, width: 52, background: darkMode ? "rgba(245,166,35,.35)" : "rgba(245,166,35,.4)", borderRadius: 2, animation: "lineGrow .9s .5s both" }} />
                             <span style={{
-                              fontSize: 11, letterSpacing: "5.5px", fontFamily: "'JetBrains Mono',monospace",
-                              fontWeight: 700, color: darkMode ? "rgba(76,175,80,.42)" : "rgba(27,94,32,.38)", textTransform: "uppercase",
+                              fontSize: 11, letterSpacing: "5.5px", fontFamily: "'IBM Plex Mono',monospace",
+                              fontWeight: 700, color: darkMode ? "rgba(245,166,35,.42)" : "rgba(138,85,0,.38)", textTransform: "uppercase",
                               animation: "fadeUp .6s .5s both"
                             }}>
                               CAPSTONE ENGINEERING TOOLKIT
                             </span>
-                            <div style={{ height: 1, width: 52, background: darkMode ? "rgba(76,175,80,.35)" : "rgba(76,175,80,.4)", borderRadius: 2, animation: "lineGrow .9s .5s both" }} />
+                            <div style={{ height: 1, width: 52, background: darkMode ? "rgba(245,166,35,.35)" : "rgba(245,166,35,.4)", borderRadius: 2, animation: "lineGrow .9s .5s both" }} />
                           </div>
                         </div>
 
@@ -2224,20 +1930,20 @@ void loop() {
                         <p style={{
                           fontSize: "clamp(16px,1.9vw,22px)", lineHeight: 1.75, maxWidth: 660, textAlign: "center",
                           color: darkMode ? "rgba(200,230,200,.62)" : "rgba(15,50,15,.58)",
-                          fontFamily: "'Outfit',sans-serif", fontWeight: 400, marginBottom: 44,
+                          fontFamily: "'Instrument Sans',sans-serif", fontWeight: 400, marginBottom: 44,
                           animation: "fadeUp .55s .2s both"
                         }}>
-                          Pick your board. Pick your sensors. Get <strong style={{ color: darkMode ? "#81c784" : "#2e7d32" }}>production-ready Arduino code</strong>, full wiring diagrams, AI explanations, and a real <strong style={{ color: darkMode ? "#81c784" : "#2e7d32" }}>EGP budget</strong> — all in under 3 minutes.
+                          Pick your board. Pick your sensors. Get <strong style={{ color: darkMode ? "#ffcc66" : "#c47d10" }}>production-ready Arduino code</strong>, full wiring diagrams, AI explanations, and a real <strong style={{ color: darkMode ? "#ffcc66" : "#c47d10" }}>EGP budget</strong> — all in under 3 minutes.
                         </p>
 
                         {/* CTAs */}
                         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center", marginBottom: 48, animation: "fadeUp .55s .3s both" }}>
                           <button className="pbtn" style={{
                             fontSize: 18, padding: "18px 60px", borderRadius: 16, letterSpacing: ".2px",
-                            boxShadow: "0 8px 32px rgba(76,175,80,.35)", transition: "transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s"
+                            boxShadow: "0 8px 32px rgba(245,166,35,.35)", transition: "transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s"
                           }}
-                            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px) scale(1.04)"; e.currentTarget.style.boxShadow = "0 16px 44px rgba(76,175,80,.45)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 8px 32px rgba(76,175,80,.35)"; }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px) scale(1.04)"; e.currentTarget.style.boxShadow = "0 16px 44px rgba(245,166,35,.45)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 8px 32px rgba(245,166,35,.35)"; }}
                             onClick={() => setStep(1)}>
                             Start Building
                           </button>
@@ -2254,11 +1960,11 @@ void loop() {
 
                         {/* Spec pills */}
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center", marginBottom: 72, animation: "fadeUp .5s .38s both" }}>
-                          {["5 MCU Boards", "13 Sensors", "6 Actuators", "133 Species", "AI-Powered", "EGP Budget"].map((s, i) => (
+                          {["5 MCU Boards", "13 Sensors", "6 Actuators", "130 Species", "AI-Powered", "EGP Budget"].map((s, i) => (
                             <span key={s} className="spec-pill" style={{
-                              color: darkMode ? "rgba(76,175,80,.9)" : "#2e7d32",
-                              background: darkMode ? "rgba(76,175,80,.09)" : "rgba(76,175,80,.1)",
-                              border: "1px solid " + (darkMode ? "rgba(76,175,80,.2)" : "rgba(76,175,80,.28)"),
+                              color: darkMode ? "rgba(245,166,35,.9)" : "#c47d10",
+                              background: darkMode ? "rgba(245,166,35,.09)" : "rgba(245,166,35,.1)",
+                              border: "1px solid " + (darkMode ? "rgba(245,166,35,.2)" : "rgba(245,166,35,.28)"),
                               fontSize: 13, padding: "7px 18px", borderRadius: 100,
                               animation: "tagPop .45s " + (i * .07) + "s both"
                             }}>{s}</span>
@@ -2268,32 +1974,32 @@ void loop() {
                         {/* Stats row — 4 horizontal cards */}
                         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", width: "100%", maxWidth: 920, animation: "fadeUp .55s .46s both" }}>
                           {[
-                            ["5", "Boards", "Uno · Mega · Nano · ESP32 · ESP8266", "#4caf50", "rgba(76,175,80,.09)"],
-                            ["13", "Sensors", "DHT · pH · TDS · Flow · BH1750 & more", "#66bb6a", "rgba(102,187,106,.09)"],
-                            ["6", "Actuators", "Fan · Pump · Lamp · Heater · PTC · Aerator", "#81c784", "rgba(129,199,132,.07)"],
-                            ["133", "Species", "Tilapia · Tomato · Saffron & 130 more", "#a5d6a7", "rgba(165,214,167,.06)"],
+                            ["5", "Boards", "Uno · Mega · Nano · ESP32 · ESP8266", "#f5a623", "rgba(245,166,35,.09)"],
+                            ["13", "Sensors", "DHT · pH · TDS · Flow · BH1750 & more", "#f0b840", "rgba(102,187,106,.09)"],
+                            ["6", "Actuators", "Fan · Pump · Lamp · Heater · PTC · Aerator", "#ffcc66", "rgba(129,199,132,.07)"],
+                            ["130", "Species", "GH · AQ · Hybrid · 130 species", "#f5cc80", "rgba(165,214,167,.06)"],
                           ].map(([num, lbl, sub, col, bg], i) => (
                             <div key={lbl} className="stat-card"
                               style={{
                                 background: darkMode ? bg : "rgba(255,255,255,.82)",
-                                border: "1px solid " + (darkMode ? "rgba(76,175,80,.14)" : "rgba(76,175,80,.22)"),
+                                border: "1px solid " + (darkMode ? "rgba(245,166,35,.14)" : "rgba(245,166,35,.22)"),
                                 borderRadius: 22, padding: "26px 30px", flex: "1 1 180px", minWidth: 160,
                                 display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center",
                                 backdropFilter: "blur(16px)",
                                 animation: "cardEntrance .6s " + (i * .13 + .5) + "s both",
                                 transition: "transform .35s cubic-bezier(.34,1.56,.64,1),box-shadow .3s",
-                                boxShadow: darkMode ? "0 8px 32px rgba(0,0,0,.32)" : "0 8px 28px rgba(76,175,80,.1)"
+                                boxShadow: darkMode ? "0 8px 32px rgba(0,0,0,.32)" : "0 8px 28px rgba(245,166,35,.1)"
                               }}
-                              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-8px) scale(1.04)"; e.currentTarget.style.boxShadow = darkMode ? "0 20px 48px rgba(0,0,0,.45)" : "0 20px 40px rgba(76,175,80,.18)"; }}
-                              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = darkMode ? "0 8px 32px rgba(0,0,0,.32)" : "0 8px 28px rgba(76,175,80,.1)"; }}>
+                              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-8px) scale(1.04)"; e.currentTarget.style.boxShadow = darkMode ? "0 20px 48px rgba(0,0,0,.45)" : "0 20px 40px rgba(245,166,35,.18)"; }}
+                              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = darkMode ? "0 8px 32px rgba(0,0,0,.32)" : "0 8px 28px rgba(245,166,35,.1)"; }}>
                               <div style={{
                                 fontSize: "clamp(48px,5vw,66px)", fontWeight: 900, lineHeight: 1,
-                                fontFamily: "'Outfit',sans-serif", color: col, marginBottom: 10,
+                                fontFamily: "'Instrument Sans',sans-serif", color: col, marginBottom: 10,
                                 animation: "numberFlip .75s " + (i * .13 + .55) + "s both",
                                 textShadow: darkMode ? "0 0 28px " + col + "55" : "none"
                               }}>{num}</div>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: TXT, marginBottom: 5, fontFamily: "'Outfit',sans-serif" }}>{lbl}</div>
-                              <div style={{ fontSize: 11, color: MUT, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.55 }}>{sub}</div>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: TXT, marginBottom: 5, fontFamily: "'Instrument Sans',sans-serif" }}>{lbl}</div>
+                              <div style={{ fontSize: 11, color: MUT, fontFamily: "'IBM Plex Mono',monospace", lineHeight: 1.55 }}>{sub}</div>
                             </div>
                           ))}
                         </div>
@@ -2301,13 +2007,13 @@ void loop() {
                         {/* Scroll hint arrow */}
                         <div style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, animation: "fadeUp .45s .9s both" }}>
                           <span style={{
-                            fontSize: 10, fontFamily: "'JetBrains Mono',monospace",
-                            color: darkMode ? "rgba(76,175,80,.35)" : "rgba(46,125,50,.4)", letterSpacing: "2.5px", fontWeight: 700
+                            fontSize: 10, fontFamily: "'IBM Plex Mono',monospace",
+                            color: darkMode ? "rgba(245,166,35,.35)" : "rgba(196,125,16,.4)", letterSpacing: "2.5px", fontWeight: 700
                           }}>SCROLL</span>
                           <div style={{ display: "flex", flexDirection: "column", gap: 3, animation: "float 2.2s ease-in-out infinite" }}>
                             {[0, 1, 2].map(ii => (
                               <div key={ii} style={{
-                                width: 1, height: 10, background: "linear-gradient(to bottom,rgba(76,175,80," + (darkMode ? .5 : .4) + "),transparent)",
+                                width: 1, height: 10, background: "linear-gradient(to bottom,rgba(245,166,35," + (darkMode ? .5 : .4) + "),transparent)",
                                 margin: "0 auto", opacity: 1 - (ii * .25)
                               }} />
                             ))}
@@ -2325,8 +2031,8 @@ void loop() {
                       background: darkMode
                         ? "linear-gradient(180deg,#030903 0%,#020602 100%)"
                         : "linear-gradient(180deg,#f4faf4 0%,#edf7ee 100%)",
-                      borderTop: "1px solid " + (darkMode ? "rgba(76,175,80,.09)" : "rgba(76,175,80,.14)"),
-                      borderBottom: "1px solid " + (darkMode ? "rgba(76,175,80,.09)" : "rgba(76,175,80,.14)")
+                      borderTop: "1px solid " + (darkMode ? "rgba(245,166,35,.09)" : "rgba(245,166,35,.14)"),
+                      borderBottom: "1px solid " + (darkMode ? "rgba(245,166,35,.09)" : "rgba(245,166,35,.14)")
                     }}>
 
                       {/* Section header — centered */}
@@ -2336,18 +2042,18 @@ void loop() {
                           opacity: featVis ? 1 : 0, transform: featVis ? "none" : "translateY(-8px)",
                           transition: "all .45s .05s cubic-bezier(.4,0,.2,1)"
                         }}>
-                          <div style={{ height: 1, width: 40, background: "linear-gradient(90deg,transparent,rgba(76,175,80,.5))", borderRadius: 1 }} />
+                          <div style={{ height: 1, width: 40, background: "linear-gradient(90deg,transparent,rgba(245,166,35,.5))", borderRadius: 1 }} />
                           <span style={{
-                            fontSize: 11, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800,
+                            fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800,
                             letterSpacing: "3px", color: G
                           }}>WHAT'S INSIDE</span>
-                          <div style={{ height: 1, width: 40, background: "linear-gradient(90deg,rgba(76,175,80,.5),transparent)", borderRadius: 1 }} />
+                          <div style={{ height: 1, width: 40, background: "linear-gradient(90deg,rgba(245,166,35,.5),transparent)", borderRadius: 1 }} />
                         </div>
                         <h2 style={{
                           fontSize: "clamp(30px,4.5vw,54px)", fontWeight: 900, color: TXT, marginBottom: 14,
                           letterSpacing: "-1.5px", lineHeight: 1.1,
                           opacity: featVis ? 1 : 0, transition: "opacity .5s .18s",
-                          textShadow: darkMode ? "0 0 40px rgba(76,175,80,.08)" : "none"
+                          textShadow: darkMode ? "0 0 40px rgba(245,166,35,.08)" : "none"
                         }}>
                           Everything you need to build.
                         </h2>
@@ -2362,8 +2068,8 @@ void loop() {
                       {/* Feature cards — 5 columns × 2 rows */}
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(280px,100%),1fr))", gap: 20, maxWidth: 1500, margin: "0 auto" }}>
                         {[
-                          { tag: "GEN", title: "Code Generator", desc: "Full production-ready Arduino sketch with relay logic, calibrated setpoints, and correct library calls for all 5 boards.", col: "#4caf50", navTab: "gen", showOpen: false },
-                          { tag: "WIR", title: "Wiring Guide", desc: "Auto-generated pin assignment tables, interactive SVG circuit diagram, and breadboard layout specific to your exact selection.", col: "#66bb6a", navTab: "gen", showOpen: false },
+                          { tag: "GEN", title: "Code Generator", desc: "Full production-ready Arduino sketch with relay logic, calibrated setpoints, and correct library calls for all 5 boards.", col: "#f5a623", navTab: "gen", showOpen: false },
+                          { tag: "WIR", title: "Wiring Guide", desc: "Auto-generated pin assignment tables, interactive SVG circuit diagram, and breadboard layout specific to your exact selection.", col: "#f0b840", navTab: "gen", showOpen: false },
                           { tag: "EXP", title: "Line Explainer", desc: "Every single line of your generated code explained in plain English — no more guessing what any line does.", col: "#ffa726", navTab: "gen", showOpen: false },
                           { tag: "AI", title: "AI Assistant", desc: "Claude AI embedded — answers questions, explains concepts, edits your code live, and debugs wiring in real time.", col: "#42a5f5", navTab: "chat", showOpen: true },
                           { tag: "SER", title: "Serial Monitor", desc: "Simulate your sensor readings live in the browser — no hardware needed. Test logic before connecting anything.", col: "#9ccc65", navTab: "gen", showOpen: false },
@@ -2418,7 +2124,7 @@ void loop() {
                             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20, position: "relative", zIndex: 1 }}>
                               <div style={{
                                 background: col + "25", border: "1px solid " + col + "44", borderRadius: 9,
-                                padding: "5px 14px", fontFamily: "'JetBrains Mono',monospace", fontSize: 11, fontWeight: 900,
+                                padding: "5px 14px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, fontWeight: 900,
                                 color: col, letterSpacing: "1.2px"
                               }}>{tag}</div>
                             </div>
@@ -2426,13 +2132,13 @@ void loop() {
                             {/* Title */}
                             <div style={{
                               fontSize: 20, fontWeight: 800, color: TXT, marginBottom: 10,
-                              fontFamily: "'Outfit',sans-serif", lineHeight: 1.2, position: "relative", zIndex: 1
+                              fontFamily: "'Instrument Sans',sans-serif", lineHeight: 1.2, position: "relative", zIndex: 1
                             }}>{title}</div>
 
                             {/* Description */}
                             <div style={{
                               fontSize: 14, color: darkMode ? "rgba(165,214,167,.62)" : MUT,
-                              lineHeight: 1.72, fontFamily: "'Outfit',sans-serif", position: "relative", zIndex: 1, marginBottom: showOpen ? 16 : 0
+                              lineHeight: 1.72, fontFamily: "'Instrument Sans',sans-serif", position: "relative", zIndex: 1, marginBottom: showOpen ? 16 : 0
                             }}>{desc}</div>
 
                             {/* Arrow — only for standalone tabs */}
@@ -2461,11 +2167,11 @@ void loop() {
                           {["3+ Sensors", "2+ Actuators", "Closed-Loop Feedback", "Greenhouse / Aquaculture", "Prototype Ready"].map(t => (
                             <span key={t} style={{
                               display: "inline-flex", alignItems: "center", gap: 6,
-                              background: darkMode ? "rgba(76,175,80,.09)" : "rgba(76,175,80,.11)",
-                              border: "1px solid rgba(76,175,80,.22)", borderRadius: 100, padding: "8px 18px",
-                              fontSize: 13, color: darkMode ? "rgba(255,255,255,.82)" : "#1b5e20", fontWeight: 600
+                              background: darkMode ? "rgba(245,166,35,.09)" : "rgba(245,166,35,.11)",
+                              border: "1px solid rgba(245,166,35,.22)", borderRadius: 100, padding: "8px 18px",
+                              fontSize: 13, color: darkMode ? "rgba(255,255,255,.82)" : "#8a5500", fontWeight: 600
                             }}>
-                              <span style={{ color: "#4caf50", fontWeight: 900, fontSize: 15 }}>✓</span>{t}
+                              <span style={{ color: "#f5a623", fontWeight: 900, fontSize: 15 }}>✓</span>{t}
                             </span>
                           ))}
                         </div>
@@ -2474,7 +2180,7 @@ void loop() {
                         <button className="pbtn" style={{ fontSize: 16, padding: "16px 44px", borderRadius: 14, whiteSpace: "nowrap" }} onClick={() => setStep(1)}>
                           Build My Project →
                         </button>
-                        <span style={{ fontSize: 11, color: darkMode ? "rgba(76,175,80,.42)" : "rgba(46,125,50,.5)", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: ".5px" }}>5 STEPS · ~3 MIN</span>
+                        <span style={{ fontSize: 11, color: darkMode ? "rgba(245,166,35,.42)" : "rgba(196,125,16,.5)", fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, letterSpacing: ".5px" }}>5 STEPS · ~3 MIN</span>
                       </div>
                     </div>
 
@@ -2490,18 +2196,18 @@ void loop() {
                       ].map(([lbl, url], i) => (
                         <a key={lbl} href={url} target="_blank" rel="noreferrer"
                           style={{
-                            fontSize: 12, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
-                            color: darkMode ? "rgba(76,175,80,.7)" : "rgba(30,100,30,.78)",
-                            border: "1px solid " + (darkMode ? "rgba(76,175,80,.18)" : "rgba(46,125,50,.24)"),
+                            fontSize: 12, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700,
+                            color: darkMode ? "rgba(245,166,35,.7)" : "rgba(30,100,30,.78)",
+                            border: "1px solid " + (darkMode ? "rgba(245,166,35,.18)" : "rgba(196,125,16,.24)"),
                             borderRadius: 100, padding: "9px 22px", textDecoration: "none",
                             display: "inline-block", letterSpacing: ".3px",
-                            background: darkMode ? "rgba(76,175,80,.04)" : "rgba(255,255,255,.85)",
+                            background: darkMode ? "rgba(245,166,35,.04)" : "rgba(255,255,255,.85)",
                             backdropFilter: "blur(8px)",
                             transition: "transform .28s cubic-bezier(.34,1.56,.64,1),background .2s,border-color .2s,color .2s,box-shadow .25s",
                             animation: "popIn .45s " + (i * .07) + "s both"
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(76,175,80,.14)"; e.currentTarget.style.borderColor = G; e.currentTarget.style.color = G; e.currentTarget.style.transform = "translateY(-4px) scale(1.06)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(76,175,80,.2)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = darkMode ? "rgba(76,175,80,.04)" : "rgba(255,255,255,.85)"; e.currentTarget.style.borderColor = darkMode ? "rgba(76,175,80,.18)" : "rgba(46,125,50,.24)"; e.currentTarget.style.color = darkMode ? "rgba(76,175,80,.7)" : "rgba(30,100,30,.78)"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}>
+                          onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,166,35,.14)"; e.currentTarget.style.borderColor = G; e.currentTarget.style.color = G; e.currentTarget.style.transform = "translateY(-4px) scale(1.06)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(245,166,35,.2)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = darkMode ? "rgba(245,166,35,.04)" : "rgba(255,255,255,.85)"; e.currentTarget.style.borderColor = darkMode ? "rgba(245,166,35,.18)" : "rgba(196,125,16,.24)"; e.currentTarget.style.color = darkMode ? "rgba(245,166,35,.7)" : "rgba(30,100,30,.78)"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}>
                           {lbl}
                         </a>
                       ))}
@@ -2530,12 +2236,12 @@ void loop() {
                                   type="number" min="0"
                                   value={customPrices.mcu[k] ?? COSTS.mcu[k] ?? 0}
                                   onChange={e => setCustomPrices(prev => ({ ...prev, mcu: { ...prev.mcu, [k]: parseInt(e.target.value) || 0 } }))}
-                                  style={{ width: 56, background: "transparent", border: "none", outline: "none", color: mcu === k ? G2 : G, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 12, textAlign: "right" }}
+                                  style={{ width: 56, background: "transparent", border: "none", outline: "none", color: mcu === k ? G2 : G, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: 12, textAlign: "right" }}
                                 />
                                 <span style={{ fontSize: 10, color: MUT }}>EGP</span>
                               </div>
                             </div>
-                            <div style={{ fontSize: 13, color: darkMode ? "rgba(165,214,167,.75)" : MUT, fontFamily: "'JetBrains Mono',monospace", marginBottom: 6 }}>{v.chip} · {v.voltage}</div>
+                            <div style={{ fontSize: 13, color: darkMode ? "rgba(165,214,167,.75)" : MUT, fontFamily: "'IBM Plex Mono',monospace", marginBottom: 6 }}>{v.chip} · {v.voltage}</div>
                             <div style={{ fontSize: 13, color: G2, marginBottom: 8 }}>{v.i2c}</div>
                             <div style={{ fontSize: 13, color: mcu === k ? G2 : darkMode ? "rgba(165,214,167,.72)" : MUT, lineHeight: 1.65, borderTop: "1px solid " + BD, paddingTop: 10 }}>{v.note}</div>
                           </button>
@@ -2591,7 +2297,7 @@ void loop() {
                           style={{ background: spKey === k ? G4 : BG3, border: "1.5px solid " + (spKey === k ? G : BD), borderRadius: 10, padding: "13px 15px", cursor: "pointer", textAlign: "left", transition: "all .2s" }}>
                           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 5, color: spKey === k ? G2 : TXT }}>{v.name}</div>
                           <div style={{ fontSize: 13, color: darkMode ? "rgba(165,214,167,.68)" : MUT, lineHeight: 1.55, marginBottom: 6 }}>{v.desc}</div>
-                          <div style={{ fontSize: 10, color: spKey === k ? G : MUT, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.4 }}>
+                          <div style={{ fontSize: 10, color: spKey === k ? G : MUT, fontFamily: "'IBM Plex Mono',monospace", lineHeight: 1.4 }}>
                             {Object.entries(v).filter(([sk]) => sk !== "name" && sk !== "desc" && SENSORS[sk]).slice(0, 2).map(([sk, sv]) => sk + ": " + sv[0] + "–" + sv[1]).join("  |  ")}
                           </div>
                         </button>
@@ -2612,7 +2318,7 @@ void loop() {
                         <div style={{ fontSize: 13, color: MUT }}>Submit a request and we'll add it to the database.</div>
                       </div>
                       <a href="https://forms.gle/oM82q6gPFh96Nq9V9" target="_blank" rel="noreferrer"
-                        style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", color: "#fff", padding: "11px 24px", borderRadius: 10, fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
+                        style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", color: "#fff", padding: "11px 24px", borderRadius: 10, fontFamily: "'Instrument Sans',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
                         Submit Request
                       </a>
                     </div>
@@ -2644,11 +2350,11 @@ void loop() {
                                 type="number" min="0"
                                 value={customPrices.sensor[k] ?? COSTS.sensor[k] ?? 0}
                                 onChange={e => setCustomPrices(prev => ({ ...prev, sensor: { ...prev.sensor, [k]: parseInt(e.target.value) || 0 } }))}
-                                style={{ width: 52, background: "transparent", border: "none", outline: "none", color: sel ? G2 : G, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 11, textAlign: "right" }}
+                                style={{ width: 52, background: "transparent", border: "none", outline: "none", color: sel ? G2 : G, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, fontSize: 11, textAlign: "right" }}
                               />
                               <span style={{ fontSize: 10, color: MUT }}>EGP</span>
                             </div>
-                            <span style={{ fontSize: 11, color: darkMode ? "rgba(165,214,167,.6)" : MUT, fontFamily: "'JetBrains Mono',monospace" }}>{v.type}</span>
+                            <span style={{ fontSize: 11, color: darkMode ? "rgba(165,214,167,.6)" : MUT, fontFamily: "'IBM Plex Mono',monospace" }}>{v.type}</span>
                           </div>
                           {sel && (() => {
                             const isDHT = k === "dht22" || k === "dht11";
@@ -2662,7 +2368,7 @@ void loop() {
                                         <input type="checkbox" checked={sensors[k].useTemp !== false}
                                           onChange={e => setSensors(p => ({ ...p, [k]: { ...p[k], useTemp: e.target.checked } }))}
                                           style={{ accentColor: G, width: 14, height: 14 }} />
-                                        <span style={{ fontSize: 12, color: "#ff7043", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>Temp (°C)</span>
+                                        <span style={{ fontSize: 12, color: "#ff7043", fontWeight: 700, fontFamily: "'IBM Plex Mono',monospace" }}>Temp (°C)</span>
                                       </label>
                                       <span style={{ fontSize: 11, color: MUT }}>Min:</span>
                                       <input type="number" className="ri" value={sensors[k].min} disabled={sensors[k].useTemp === false}
@@ -2678,7 +2384,7 @@ void loop() {
                                         <input type="checkbox" checked={sensors[k].useHum !== false}
                                           onChange={e => setSensors(p => ({ ...p, [k]: { ...p[k], useHum: e.target.checked } }))}
                                           style={{ accentColor: G, width: 14, height: 14 }} />
-                                        <span style={{ fontSize: 12, color: "#29b6f6", fontWeight: 700, fontFamily: "'JetBrains Mono',monospace" }}>Humidity (%)</span>
+                                        <span style={{ fontSize: 12, color: "#29b6f6", fontWeight: 700, fontFamily: "'IBM Plex Mono',monospace" }}>Humidity (%)</span>
                                       </label>
                                       <span style={{ fontSize: 11, color: MUT }}>Min:</span>
                                       <input type="number" className="ri" value={sensors[k].humMin ?? 40} disabled={sensors[k].useHum === false}
@@ -2718,13 +2424,13 @@ void loop() {
                       return (
                         <div style={{ marginTop: 12, background: BG3, border: "1.5px solid " + BD2, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                           <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
-                            {mcu && <div><div style={{ fontSize: 9, color: MUT, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.5px" }}>MCU</div><div style={{ fontSize: 13, fontWeight: 800, color: G }}>{mcuC} EGP</div></div>}
-                            {sCount > 0 && <div><div style={{ fontSize: 9, color: MUT, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.5px" }}>SENSORS ({sCount})</div><div style={{ fontSize: 13, fontWeight: 800, color: G }}>{senC} EGP</div></div>}
-                            <div><div style={{ fontSize: 9, color: MUT, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.5px" }}>ACTUATORS + TOTAL</div><div style={{ fontSize: 10, color: MUT }}>estimated in Step 5</div></div>
+                            {mcu && <div><div style={{ fontSize: 9, color: MUT, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "0.5px" }}>MCU</div><div style={{ fontSize: 13, fontWeight: 800, color: G }}>{mcuC} EGP</div></div>}
+                            {sCount > 0 && <div><div style={{ fontSize: 9, color: MUT, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "0.5px" }}>SENSORS ({sCount})</div><div style={{ fontSize: 13, fontWeight: 800, color: G }}>{senC} EGP</div></div>}
+                            <div><div style={{ fontSize: 9, color: MUT, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "0.5px" }}>ACTUATORS + TOTAL</div><div style={{ fontSize: 10, color: MUT }}>estimated in Step 5</div></div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 9, color: MUT, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "1px" }}>SO FAR</div>
-                            <div style={{ fontSize: 20, fontWeight: 800, color: G, fontFamily: "'JetBrains Mono',monospace" }}>{sofar} EGP</div>
+                            <div style={{ fontSize: 9, color: MUT, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "1px" }}>SO FAR</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: G, fontFamily: "'IBM Plex Mono',monospace" }}>{sofar} EGP</div>
                           </div>
                         </div>
                       );
@@ -2739,7 +2445,7 @@ void loop() {
                         <div style={{ fontSize: 13, color: MUT }}>Submit a request and we'll add it to the list.</div>
                       </div>
                       <a href="https://forms.gle/oM82q6gPFh96Nq9V9" target="_blank" rel="noreferrer"
-                        style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", color: "#fff", padding: "11px 24px", borderRadius: 10, fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
+                        style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", color: "#fff", padding: "11px 24px", borderRadius: 10, fontFamily: "'Instrument Sans',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
                         Submit Request
                       </a>
                     </div>
@@ -2789,19 +2495,19 @@ void loop() {
                             <span style={{ fontWeight: 700, fontSize: 15, flex: 1, color: TXT }}>{v.label}</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                               <div style={{ display: "flex", alignItems: "center", gap: 4, background: BG2, border: "1px solid " + BD2, borderRadius: 8, padding: "4px 8px" }}>
-                                <span style={{ fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", whiteSpace: "nowrap" }}>device</span>
+                                <span style={{ fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", whiteSpace: "nowrap" }}>device</span>
                                 <input type="number" min="0" value={price} onChange={e => setActuatorPrice(k, e.target.value)}
-                                  style={{ width: 62, background: "transparent", border: "none", outline: "none", color: G, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 13, textAlign: "right" }} />
+                                  style={{ width: 62, background: "transparent", border: "none", outline: "none", color: G, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: 13, textAlign: "right" }} />
                                 <span style={{ fontSize: 10, color: MUT }}>EGP</span>
                               </div>
                               <span style={{ fontSize: 10, color: MUT }}>+</span>
                               <div style={{ display: "flex", alignItems: "center", gap: 4, background: BG2, border: "1px solid " + BD2, borderRadius: 8, padding: "4px 8px" }}>
-                                <span style={{ fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", whiteSpace: "nowrap" }}>relay</span>
+                                <span style={{ fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", whiteSpace: "nowrap" }}>relay</span>
                                 <input type="number" min="0" value={relayP} onChange={e => setRelayPrice(e.target.value)}
-                                  style={{ width: 44, background: "transparent", border: "none", outline: "none", color: G2, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 12, textAlign: "right" }} />
+                                  style={{ width: 44, background: "transparent", border: "none", outline: "none", color: G2, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, fontSize: 12, textAlign: "right" }} />
                                 <span style={{ fontSize: 10, color: MUT }}>EGP</span>
                               </div>
-                              <div style={{ background: sel ? G3 : BG, border: "1px solid " + (sel ? G : BD), borderRadius: 7, padding: "3px 8px", fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 12, color: sel ? "#fff" : MUT, whiteSpace: "nowrap" }}>
+                              <div style={{ background: sel ? G3 : BG, border: "1px solid " + (sel ? G : BD), borderRadius: 7, padding: "3px 8px", fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: 12, color: sel ? "#fff" : MUT, whiteSpace: "nowrap" }}>
                                 {price + relayP} EGP
                               </div>
                             </div>
@@ -2814,11 +2520,11 @@ void loop() {
                               <div style={{ marginTop: 10, padding: "10px 12px", background: BG2, borderRadius: 8, border: "1px solid " + BD2 }} onClick={e => e.stopPropagation()}>
                                 {/* Header row */}
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: triggers.length ? 10 : 0 }}>
-                                  <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: G, fontWeight: 700, letterSpacing: "1px" }}>
+                                  <span style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: G, fontWeight: 700, letterSpacing: "1px" }}>
                                     TRIGGERS {triggers.length > 1 ? <span style={{ color: "#29b6f6", fontWeight: 400 }}>(OR — any activates)</span> : ""}
                                   </span>
                                   <button onClick={() => addActTrigger(k)}
-                                    style={{ background: G3, border: "none", color: "#fff", borderRadius: 6, padding: "3px 12px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.5px" }}>
+                                    style={{ background: G3, border: "none", color: "#fff", borderRadius: 6, padding: "3px 12px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "0.5px" }}>
                                     + Add
                                   </button>
                                 </div>
@@ -2828,13 +2534,13 @@ void loop() {
                                   return (
                                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: idx < triggers.length - 1 ? 7 : 0, flexWrap: "wrap" }}>
                                       {/* IF / OR badge */}
-                                      <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 800, color: idx === 0 ? G : "#29b6f6", width: 22, flexShrink: 0 }}>
+                                      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, fontWeight: 800, color: idx === 0 ? G : "#29b6f6", width: 22, flexShrink: 0 }}>
                                         {idx === 0 ? "IF" : "OR"}
                                       </span>
                                       {/* Sensor dropdown */}
                                       <select value={t.sensor || "manual"}
                                         onChange={e => updateActTrigger(k, idx, "sensor", e.target.value)}
-                                        style={{ background: BG3, border: "1px solid " + (isSel ? BD2 : "#ff7043"), color: TXT, borderRadius: 7, padding: "5px 9px", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, cursor: "pointer", flex: 1, minWidth: 145 }}>
+                                        style={{ background: BG3, border: "1px solid " + (isSel ? BD2 : "#ff7043"), color: TXT, borderRadius: 7, padding: "5px 9px", fontSize: 12, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, cursor: "pointer", flex: 1, minWidth: 145 }}>
                                         {sensorOptions.map(o => {
                                           const linked = Object.keys(sensors).some(sk => sk === o.value || (o.value.endsWith("_hum") && sk === o.value.replace("_hum","")));
                                           return <option key={o.value} value={o.value}>{linked ? "✓ " : "  "}{o.label}</option>;
@@ -2843,13 +2549,13 @@ void loop() {
                                       {/* Condition dropdown */}
                                       <select value={t.cond || "hi"}
                                         onChange={e => updateActTrigger(k, idx, "cond", e.target.value)}
-                                        style={{ background: BG3, border: "1px solid " + BD2, color: t.cond === "hi" ? "#ff7043" : "#29b6f6", borderRadius: 7, padding: "5px 8px", fontSize: 11, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, cursor: "pointer", minWidth: 95 }}>
+                                        style={{ background: BG3, border: "1px solid " + BD2, color: t.cond === "hi" ? "#ff7043" : "#29b6f6", borderRadius: 7, padding: "5px 8px", fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, cursor: "pointer", minWidth: 95 }}>
                                         <option value="hi">&gt; MAX</option>
                                         <option value="lo">&lt; MIN</option>
                                       </select>
                                       {/* Warning if sensor not in step 4 */}
                                       {!isSel && (
-                                        <span style={{ fontSize: 10, color: "#ff7043", fontFamily: "'JetBrains Mono',monospace" }}>⚠</span>
+                                        <span style={{ fontSize: 10, color: "#ff7043", fontFamily: "'IBM Plex Mono',monospace" }}>⚠</span>
                                       )}
                                       {/* Remove button — only when >1 trigger */}
                                       {triggers.length > 1 && (
@@ -2888,8 +2594,8 @@ void loop() {
                       return (
                         <div style={{ marginTop: 14, background: BG3, border: "1px solid " + BD2, borderRadius: 12, padding: "16px" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: G, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "1px" }}>ESTIMATED BUDGET (EGP)</div>
-                            <button style={{ fontSize: 10, color: MUT, background: "none", border: "1px solid " + BD, borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "'JetBrains Mono',monospace" }}
+                            <div style={{ fontSize: 12, fontWeight: 700, color: G, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "1px" }}>ESTIMATED BUDGET (EGP)</div>
+                            <button style={{ fontSize: 10, color: MUT, background: "none", border: "1px solid " + BD, borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "'IBM Plex Mono',monospace" }}
                               onClick={() => setCustomPrices({ mcu: { ...COSTS.mcu }, sensor: { ...COSTS.sensor }, actuator: { ...COSTS.actuator }, relay: COSTS.relay, misc: 150 })}>
                               Reset to defaults
                             </button>
@@ -2897,7 +2603,7 @@ void loop() {
                           <div className="grid-3" style={{ gap: 8, marginBottom: 10 }}>
                             {[["MCU", mcuCost], ["Sensors", sensorCost], ["Actuators+Relays", actCost]].map(([lbl, cost]) => (
                               <div key={lbl} style={{ background: BG2, borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-                                <div style={{ fontSize: 17, fontWeight: 800, color: G, fontFamily: "'JetBrains Mono',monospace" }}>{cost}</div>
+                                <div style={{ fontSize: 17, fontWeight: 800, color: G, fontFamily: "'IBM Plex Mono',monospace" }}>{cost}</div>
                                 <div style={{ fontSize: 10, color: MUT, marginTop: 2 }}>{lbl}</div>
                               </div>
                             ))}
@@ -2906,12 +2612,12 @@ void loop() {
                             <span style={{ fontSize: 11, color: MUT, flex: 1 }}>Misc / Wires / Breadboard</span>
                             <input type="number" min="0" value={customPrices.misc}
                               onChange={e => setCustomPrices(prev => ({ ...prev, misc: parseInt(e.target.value) || 0 }))}
-                              style={{ width: 70, background: "transparent", border: "none", outline: "none", color: G, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 14, textAlign: "right" }} />
+                              style={{ width: 70, background: "transparent", border: "none", outline: "none", color: G, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: 14, textAlign: "right" }} />
                             <span style={{ fontSize: 11, color: MUT }}>EGP</span>
                           </div>
                           <div style={{ borderTop: "1px solid " + BD, paddingTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontSize: 12, color: MUT }}>Total estimated cost</span>
-                            <span style={{ fontSize: 20, fontWeight: 800, color: G, fontFamily: "'JetBrains Mono',monospace" }}>{total} EGP</span>
+                            <span style={{ fontSize: 20, fontWeight: 800, color: G, fontFamily: "'IBM Plex Mono',monospace" }}>{total} EGP</span>
                           </div>
                           <div style={{ fontSize: 10, color: MUT, marginTop: 6 }}>Prices sourced from makerselectronics.com, ram-e-shop.com, and store.fut-electronics.com (Egypt, 2026). Click any price to edit.</div>
                         </div>
@@ -2927,7 +2633,7 @@ void loop() {
                         <div style={{ fontSize: 13, color: MUT }}>Submit a request and we'll add it to the list.</div>
                       </div>
                       <a href="https://forms.gle/oM82q6gPFh96Nq9V9" target="_blank" rel="noreferrer"
-                        style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", color: "#fff", padding: "11px 24px", borderRadius: 10, fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
+                        style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", color: "#fff", padding: "11px 24px", borderRadius: 10, fontFamily: "'Instrument Sans',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
                         Submit Request
                       </a>
                     </div>
@@ -2969,18 +2675,18 @@ void loop() {
                           return (
                             <div style={{ padding: "10px 16px", background: BG3, borderBottom: "1px solid " + BD, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                               <span style={{ fontSize: 11, color: MUT, fontWeight: 700, flexShrink: 0 }}>AI modified the code:</span>
-                              <span style={{ fontSize: 11, color: "#4caf50", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>+{added} lines</span>
-                              <span style={{ fontSize: 11, color: "#ef5350", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>−{removed} lines</span>
+                              <span style={{ fontSize: 11, color: "#f5a623", fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }}>+{added} lines</span>
+                              <span style={{ fontSize: 11, color: "#ef5350", fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }}>−{removed} lines</span>
                               <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                                 <button style={{
-                                  padding: "4px 12px", fontSize: 11, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
+                                  padding: "4px 12px", fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700,
                                   background: !diffMode ? G : "transparent",
                                   color: !diffMode ? BG : MUT,
                                   border: "1px solid " + (!diffMode ? G : BD), borderRadius: 6, cursor: "pointer"
                                 }}
                                   onClick={() => setDiffMode(false)}>Final Code</button>
                                 <button style={{
-                                  padding: "4px 12px", fontSize: 11, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
+                                  padding: "4px 12px", fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700,
                                   background: diffMode ? G : "transparent",
                                   color: diffMode ? BG : MUT,
                                   border: "1px solid " + (diffMode ? G : BD), borderRadius: 6, cursor: "pointer"
@@ -2994,7 +2700,7 @@ void loop() {
                         <div style={{ padding: 16, overflow: "auto", maxHeight: 520 }}>
                           {codeTab === "code" && prevCode ? (
                             diffMode ? (
-                              <pre style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+                              <pre style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
                                 {diffLines(prevCode, genCode).map((part, pi) => {
                                   if (!part.added && !part.removed) {
                                     return <span key={pi} style={{ color: "#5a7a5a" }}>{part.value}</span>;
@@ -3003,19 +2709,19 @@ void loop() {
                                   const color = part.added ? "#69d87a" : "#f47a7a";
                                   const prefix = part.added ? "+" : "−";
                                   return part.value.split("\n").filter((ln, li, arr) => li < arr.length - 1 || ln !== "").map((ln, li) => (
-                                    <div key={pi + "-" + li} style={{ background: bg, color, display: "block", padding: "0 8px", marginBottom: 1, borderLeft: "3px solid " + (part.added ? "#4caf50" : "#ef5350") }}>
+                                    <div key={pi + "-" + li} style={{ background: bg, color, display: "block", padding: "0 8px", marginBottom: 1, borderLeft: "3px solid " + (part.added ? "#f5a623" : "#ef5350") }}>
                                       <span style={{ opacity: 0.5, userSelect: "none", marginRight: 8, fontSize: 10 }}>{prefix}</span>{ln}
                                     </div>
                                   ));
                                 })}
                               </pre>
                             ) : (
-                              <pre style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.6, color: "#a5d6a7", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+                              <pre style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", lineHeight: 1.6, color: "#f5cc80", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
                                 {genCode}
                               </pre>
                             )
                           ) : (
-                            <pre style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.6, color: "#a5d6a7", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+                            <pre style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", lineHeight: 1.6, color: "#f5cc80", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
                               {codeTab === "code" ? genCode : wiring}
                             </pre>
                           )}
@@ -3034,10 +2740,10 @@ void loop() {
                       sKeys.forEach(k => {
                         const sv = SENSORS[k];
                         let pin = "?";
-                        if (sv.type === "analog") pin = m.analog[analogIdx++] || "A?";
+                        if (sv.type === "analog" || sv.type === "ldr2pin") pin = m.analog[analogIdx++] || "A?";
                         else if (sv.type === "digital" || sv.type === "interrupt") pin = (MCU_DIG[mcu] || MCU_DIG.uno)[digIdx++] || "D?";
                         else if (sv.type === "I2C") pin = m.i2c;
-                        pinRows.push({ label: sv.label, icon: sv.icon, pin, type: sv.type, color: "#4caf50" });
+                        pinRows.push({ label: sv.label, icon: sv.icon, pin, type: sv.type === "ldr2pin" ? "analog" : sv.type, color: "#f5a623" });
                       });
                       aKeys.forEach(k => {
                         const av = ACTUATORS[k];
@@ -3057,37 +2763,37 @@ void loop() {
                       });
                       return (
                         <div style={{ background: BG2, border: "1px solid " + BD, borderTop: "none", borderRadius: "0 0 12px 12px", padding: 20 }}>
-                          <div style={{ fontSize: 11, color: MUT, fontFamily: "'JetBrains Mono',monospace", marginBottom: 14, letterSpacing: "1px" }}>
+                          <div style={{ fontSize: 11, color: MUT, fontFamily: "'IBM Plex Mono',monospace", marginBottom: 14, letterSpacing: "1px" }}>
                             {m.label} — {m.chip} — {m.voltage}
                           </div>
                           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                             {/* MCU visual */}
                             <div style={{ background: BG3, border: "2px solid " + BD2, borderRadius: 12, padding: "16px 20px", minWidth: 160, textAlign: "center" }}>
-                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: G, fontWeight: 800, marginBottom: 4 }}>{MCU[mcu]?.icon}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: G, fontWeight: 800, marginBottom: 4 }}>{MCU[mcu]?.icon}</div>
                               <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{m.label}</div>
                               <div style={{ fontSize: 10, color: MUT }}>{m.chip}</div>
                               <div style={{ fontSize: 10, color: MUT }}>{m.voltage}</div>
                               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid " + BD }}>
-                                <div style={{ fontSize: 9, color: MUT, fontFamily: "'JetBrains Mono',monospace" }}>{m.i2c}</div>
+                                <div style={{ fontSize: 9, color: MUT, fontFamily: "'IBM Plex Mono',monospace" }}>{m.i2c}</div>
                               </div>
                             </div>
                             {/* Pin table */}
                             <div style={{ flex: 1, minWidth: 0, overflowX: "auto" }}>
                               <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 70px", gap: 0, borderRadius: 10, overflow: "hidden", border: "1px solid " + BD, minWidth: 280 }}>
-                                <div style={{ padding: "8px 12px", background: BG3, fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD }}>PIN</div>
-                                <div style={{ padding: "8px 12px", background: BG3, fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>COMPONENT</div>
-                                <div style={{ padding: "8px 12px", background: BG3, fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>TYPE</div>
+                                <div style={{ padding: "8px 12px", background: BG3, fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD }}>PIN</div>
+                                <div style={{ padding: "8px 12px", background: BG3, fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>COMPONENT</div>
+                                <div style={{ padding: "8px 12px", background: BG3, fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>TYPE</div>
                                 {pinRows.map((row, i) => [
-                                  <div key={i + "p"} style={{ padding: "9px 12px", fontSize: 12, fontWeight: 800, color: row.color, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD, background: i % 2 === 0 ? BG2 : BG3 }}>{row.pin}</div>,
+                                  <div key={i + "p"} style={{ padding: "9px 12px", fontSize: 12, fontWeight: 800, color: row.color, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD, background: i % 2 === 0 ? BG2 : BG3 }}>{row.pin}</div>,
                                   <div key={i + "l"} style={{ padding: "9px 12px", fontSize: 12, color: TXT, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, background: i % 2 === 0 ? BG2 : BG3 }}>
                                     <span className="badge" style={{ marginRight: 6, fontSize: 9 }}>{row.icon}</span>{row.label}
                                   </div>,
-                                  <div key={i + "t"} style={{ padding: "9px 12px", fontSize: 10, color: MUT, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, background: i % 2 === 0 ? BG2 : BG3, fontFamily: "'JetBrains Mono',monospace" }}>{row.type}</div>,
+                                  <div key={i + "t"} style={{ padding: "9px 12px", fontSize: 10, color: MUT, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, background: i % 2 === 0 ? BG2 : BG3, fontFamily: "'IBM Plex Mono',monospace" }}>{row.type}</div>,
                                 ])}
                                 {[["VCC", "All sensors", m.voltage], ["GND", "All sensors/relays", "ground"], ["VCC", "All relays", "5V"]].map(([p, l, t], i) => [
-                                  <div key={"x" + i + "p"} style={{ padding: "9px 12px", fontSize: 12, fontWeight: 800, color: "#ffa726", fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD, background: BG2 }}>{p}</div>,
+                                  <div key={"x" + i + "p"} style={{ padding: "9px 12px", fontSize: 12, fontWeight: 800, color: "#ffa726", fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD, background: BG2 }}>{p}</div>,
                                   <div key={"x" + i + "l"} style={{ padding: "9px 12px", fontSize: 12, color: MUT, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, background: BG2 }}>{l}</div>,
-                                  <div key={"x" + i + "t"} style={{ padding: "9px 12px", fontSize: 10, color: "#ffa726", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, background: BG2, fontFamily: "'JetBrains Mono',monospace" }}>{t}</div>,
+                                  <div key={"x" + i + "t"} style={{ padding: "9px 12px", fontSize: 10, color: "#ffa726", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, background: BG2, fontFamily: "'IBM Plex Mono',monospace" }}>{t}</div>,
                                 ])}
                               </div>
                             </div>
@@ -3112,7 +2818,7 @@ void loop() {
 
                       const sRows = sKeys.map(k => {
                         const sv = SENSORS[k]; if (!sv) return null;
-                        let pin = sv.type === "analog" ? (analogPins[aIdx++] || "A?") :
+                        let pin = (sv.type === "analog" || sv.type === "ldr2pin") ? (analogPins[aIdx++] || "A?") :
                           sv.type === "I2C" ? (m.i2c || "SDA/SCL") :
                             sv.type === "interrupt" ? (m.intPin || "D2") :
                               (digPins[dIdx++] || "D?");
@@ -3159,21 +2865,21 @@ void loop() {
                         <div style={{ background: BG2, border: "1px solid " + BD, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "0 0 20px 0" }}>
                           <div style={{ padding: "14px 20px 12px", borderBottom: "1px solid " + BD, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                             <div>
-                              <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 2 }}>CIRCUIT DIAGRAM</div>
+                              <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 2 }}>CIRCUIT DIAGRAM</div>
                               <div style={{ fontSize: 12, color: MUT }}>Organized orthogonal routing with common VCC and GND buses.</div>
                             </div>
                             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                              {[["#29b6f6", "Signal"], ["#e53935", "VCC Bus"], ["#4caf50", "GND Bus"], ["#ff7043", "Relay"], ["#ce93d8", "I2C"]].map(([c, l]) => (
+                              {[["#29b6f6", "Signal"], ["#e53935", "VCC Bus"], ["#f5a623", "GND Bus"], ["#ff7043", "Relay"], ["#ce93d8", "I2C"]].map(([c, l]) => (
                                 <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                                   <div style={{ width: 18, height: 3, background: c, borderRadius: 2 }} />
-                                  <span style={{ fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace" }}>{l}</span>
+                                  <span style={{ fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace" }}>{l}</span>
                                 </div>
                               ))}
                             </div>
                           </div>
 
                           <div style={{ overflowX: "auto", overflowY: "visible", padding: "20px 20px 20px" }}>
-                            <svg viewBox={"0 0 " + SVG_W + " " + SVG_H} style={{ width: "100%", minWidth: 600, display: "block", fontFamily: "'JetBrains Mono',monospace" }}>
+                            <svg viewBox={"0 0 " + SVG_W + " " + SVG_H} style={{ width: "100%", minWidth: 600, display: "block", fontFamily: "'IBM Plex Mono',monospace" }}>
 
                               {/* ── VCC Bus ── */}
                               <line x1={S_X} y1={VCC_BUS_Y} x2={A_X + BLK_W} y2={VCC_BUS_Y} stroke="#e53935" strokeWidth="3" strokeLinecap="round" />
@@ -3181,23 +2887,23 @@ void loop() {
                               <text x={A_X + BLK_W - 10} y={VCC_BUS_Y - 8} textAnchor="end" fontSize="10" fontWeight="800" fill="#e53935">EXTERNAL 5V (RELAYS)</text>
 
                               {/* ── GND Bus ── */}
-                              <line x1={S_X} y1={GND_BUS_Y} x2={A_X + BLK_W} y2={GND_BUS_Y} stroke="#4caf50" strokeWidth="3" strokeLinecap="round" />
-                              <text x={S_X + 10} y={GND_BUS_Y + 14} fontSize="10" fontWeight="800" fill="#4caf50">GND BUS (COMMON)</text>
+                              <line x1={S_X} y1={GND_BUS_Y} x2={A_X + BLK_W} y2={GND_BUS_Y} stroke="#f5a623" strokeWidth="3" strokeLinecap="round" />
+                              <text x={S_X + 10} y={GND_BUS_Y + 14} fontSize="10" fontWeight="800" fill="#f5a623">GND BUS (COMMON)</text>
 
                               {/* ── MCU block ── */}
                               <rect x={MCU_X} y={PAD_TOP} width={MCU_W} height={MCU_H} rx="12"
-                                fill={darkMode ? "#071407" : "#e8f5e9"} stroke="#4caf50" strokeWidth="2.5" />
-                              <text x={MCU_X + MCU_W / 2} y={PAD_TOP + 24} textAnchor="middle" fontSize="14" fontWeight="800" fill="#4caf50">{m.icon || mcu.toUpperCase()}</text>
-                              <text x={MCU_X + MCU_W / 2} y={PAD_TOP + 40} textAnchor="middle" fontSize="10" fill={darkMode ? "#81c784" : "#2e7d32"}>{m.chip}</text>
+                                fill={darkMode ? "#071407" : "#fff8e8"} stroke="#f5a623" strokeWidth="2.5" />
+                              <text x={MCU_X + MCU_W / 2} y={PAD_TOP + 24} textAnchor="middle" fontSize="14" fontWeight="800" fill="#f5a623">{m.icon || mcu.toUpperCase()}</text>
+                              <text x={MCU_X + MCU_W / 2} y={PAD_TOP + 40} textAnchor="middle" fontSize="10" fill={darkMode ? "#ffcc66" : "#c47d10"}>{m.chip}</text>
 
                               {/* MCU Power to Buses */}
                               <path d={orthoPath(MCU_X + MCU_W / 2 - 20, PAD_TOP, MCU_X + MCU_W / 2 - 20, VCC_BUS_Y)} fill="none" stroke="#e53935" strokeWidth="1.5" />
                               <circle cx={MCU_X + MCU_W / 2 - 20} cy={VCC_BUS_Y} r="4" fill="#e53935" />
                               <text x={MCU_X + MCU_W / 2 - 15} y={PAD_TOP - 8} fontSize="9" fill="#e53935" fontWeight="700">VCC</text>
 
-                              <path d={orthoPath(MCU_X + MCU_W / 2 + 20, PAD_TOP + MCU_H, MCU_X + MCU_W / 2 + 20, GND_BUS_Y)} fill="none" stroke="#4caf50" strokeWidth="1.5" />
-                              <circle cx={MCU_X + MCU_W / 2 + 20} cy={GND_BUS_Y} r="4" fill="#4caf50" />
-                              <text x={MCU_X + MCU_W / 2 + 25} y={PAD_TOP + MCU_H + 14} fontSize="9" fill="#4caf50" fontWeight="700">GND</text>
+                              <path d={orthoPath(MCU_X + MCU_W / 2 + 20, PAD_TOP + MCU_H, MCU_X + MCU_W / 2 + 20, GND_BUS_Y)} fill="none" stroke="#f5a623" strokeWidth="1.5" />
+                              <circle cx={MCU_X + MCU_W / 2 + 20} cy={GND_BUS_Y} r="4" fill="#f5a623" />
+                              <text x={MCU_X + MCU_W / 2 + 25} y={PAD_TOP + MCU_H + 14} fontSize="9" fill="#f5a623" fontWeight="700">GND</text>
 
                               <text x={S_X + BLK_W / 2} y={PAD_TOP - 14} textAnchor="middle" fontSize="10" fontWeight="800" fill={MUT} letterSpacing="2">SENSORS</text>
                               {aRows.length > 0 && <text x={A_X + BLK_W / 2} y={PAD_TOP - 14} textAnchor="middle" fontSize="10" fontWeight="800" fill={MUT} letterSpacing="2">ACTUATORS</text>}
@@ -3211,20 +2917,20 @@ void loop() {
                                   <g key={k}>
                                     <rect x={S_X} y={by} width={BLK_W} height={BLK_H} rx="7" fill={darkMode ? "#071a07" : "#f1f8e9"} stroke={wc} strokeWidth="1.8" />
                                     <text x={S_X + 10} y={by + 15} fontSize="9" fontWeight="800" fill={wc}>SENSOR</text>
-                                    <text x={S_X + 10} y={by + 28} fontSize="11" fontWeight="700" fill={darkMode ? "#c8e6c9" : "#1b5e20"}>
+                                    <text x={S_X + 10} y={by + 28} fontSize="11" fontWeight="700" fill={darkMode ? "#c8e6c9" : "#8a5500"}>
                                       {sv.label.length > 16 ? sv.label.slice(0, 15) + "…" : sv.label}
                                     </text>
                                     {/* signal wire to MCU */}
                                     <path d={orthoPath(S_X + BLK_W, by + BLK_H / 2, MCU_X, mcuPinY)} fill="none" stroke={wc} strokeWidth="2" strokeDasharray={sv.type === "I2C" ? "6,3" : "none"} />
-                                    <rect x={MCU_X - 38} y={mcuPinY - 10} width="36" height="20" rx="4" fill={darkMode ? "#0a1a0a" : "#e8f5e9"} stroke={wc} strokeWidth="1" />
+                                    <rect x={MCU_X - 38} y={mcuPinY - 10} width="36" height="20" rx="4" fill={darkMode ? "#0a1a0a" : "#fff8e8"} stroke={wc} strokeWidth="1" />
                                     <text x={MCU_X - 20} y={mcuPinY + 4} textAnchor="middle" fontSize="9" fontWeight="800" fill={wc}>{pin}</text>
 
                                     {/* Power lines */}
                                     <path d={"M " + (S_X + BLK_W - 20) + " " + by + " V " + VCC_BUS_Y} fill="none" stroke="#e53935" strokeWidth="1.2" />
                                     <circle cx={S_X + BLK_W - 20} cy={VCC_BUS_Y} r="3" fill="#e53935" />
 
-                                    <path d={"M " + (S_X + BLK_W - 40) + " " + (by + BLK_H) + " V " + GND_BUS_Y} fill="none" stroke="#4caf50" strokeWidth="1.2" />
-                                    <circle cx={S_X + BLK_W - 40} cy={GND_BUS_Y} r="3" fill="#4caf50" />
+                                    <path d={"M " + (S_X + BLK_W - 40) + " " + (by + BLK_H) + " V " + GND_BUS_Y} fill="none" stroke="#f5a623" strokeWidth="1.2" />
+                                    <circle cx={S_X + BLK_W - 40} cy={GND_BUS_Y} r="3" fill="#f5a623" />
                                   </g>
                                 );
                               })}
@@ -3259,8 +2965,8 @@ void loop() {
                                     <path d={"M " + (relX + 20) + " " + by + " V " + VCC_BUS_Y} fill="none" stroke="#e53935" strokeWidth="1.2" strokeDasharray="4,2" />
                                     <circle cx={relX + 20} cy={VCC_BUS_Y} r="3" fill="#e53935" />
 
-                                    <path d={"M " + (relX + 40) + " " + (by + BLK_H) + " V " + GND_BUS_Y} fill="none" stroke="#4caf50" strokeWidth="1.2" />
-                                    <circle cx={relX + 40} cy={GND_BUS_Y} r="3" fill="#4caf50" />
+                                    <path d={"M " + (relX + 40) + " " + (by + BLK_H) + " V " + GND_BUS_Y} fill="none" stroke="#f5a623" strokeWidth="1.2" />
+                                    <circle cx={relX + 40} cy={GND_BUS_Y} r="3" fill="#f5a623" />
                                   </g>
                                 );
                               })}
@@ -3301,8 +3007,8 @@ void loop() {
                                         <text x={MCU_X - 20} y={mcuPinY + 4} textAnchor="middle" fontSize="9" fontWeight="800" fill="#7c4dff">{pin}</text>
                                         <path d={"M " + (S_X + BLK_W - 20) + " " + by + " V " + VCC_BUS_Y} fill="none" stroke="#e53935" strokeWidth="1.2" />
                                         <circle cx={S_X + BLK_W - 20} cy={VCC_BUS_Y} r="3" fill="#e53935" />
-                                        <path d={"M " + (S_X + BLK_W - 40) + " " + (by + BLK_H) + " V " + GND_BUS_Y} fill="none" stroke="#4caf50" strokeWidth="1.2" />
-                                        <circle cx={S_X + BLK_W - 40} cy={GND_BUS_Y} r="3" fill="#4caf50" />
+                                        <path d={"M " + (S_X + BLK_W - 40) + " " + (by + BLK_H) + " V " + GND_BUS_Y} fill="none" stroke="#f5a623" strokeWidth="1.2" />
+                                        <circle cx={S_X + BLK_W - 40} cy={GND_BUS_Y} r="3" fill="#f5a623" />
                                       </>
                                     )}
                                   </g>
@@ -3327,7 +3033,7 @@ void loop() {
                       const allItems = [
                         ...sKeys.map(k => {
                           const sv = SENSORS[k]; if (!sv) return null;
-                          let pin = sv.type === "analog" ? (analogPins[aIdx++] || "A?") :
+                          let pin = (sv.type === "analog" || sv.type === "ldr2pin") ? (analogPins[aIdx++] || "A?") :
                             sv.type === "I2C" ? (m.i2c || "SDA/SCL") :
                               sv.type === "interrupt" ? (m.intPin || "D2") :
                                 (digPins[dIdx++] || "D?");
@@ -3352,17 +3058,17 @@ void loop() {
                       const COLS = 42, ROWS_HALF = 5, CW = 14;
                       const BB_W = COLS * CW + 40;
                       const BB_H = (ROWS_HALF * 2 * CW) + 80;
-                      const ROW_COLORS = ["#29b6f6", "#80cbc4", "#ffd54f", "#ff7043", "#ce93d8", "#ef9a9a", "#a5d6a7"];
+                      const ROW_COLORS = ["#29b6f6", "#80cbc4", "#ffd54f", "#ff7043", "#ce93d8", "#ef9a9a", "#f5cc80"];
 
                       return (
                         <div style={{ background: BG2, border: "1px solid " + BD, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "20px" }}>
                           <div style={{ marginBottom: 20 }}>
-                            <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 4 }}>BREADBOARD LAYOUT</div>
+                            <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 4 }}>BREADBOARD LAYOUT</div>
                             <div style={{ fontSize: 12, color: MUT }}>Standard half-size breadboard layout. Red = VCC, Blue/Black = GND. Center trench isolates top and bottom rows.</div>
                           </div>
 
-                          <div style={{ background: darkMode ? "#050f05" : "#f0f4f0", border: "1px solid " + BD, borderRadius: 12, padding: "20px", marginBottom: 20, overflowX: "auto" }}>
-                            <svg viewBox={"0 0 " + (BB_W + 100) + " " + BB_H} style={{ width: "100%", minWidth: 500, display: "block", fontFamily: "'JetBrains Mono',monospace" }}>
+                          <div style={{ background: darkMode ? "#080a12" : "#f0f4f0", border: "1px solid " + BD, borderRadius: 12, padding: "20px", marginBottom: 20, overflowX: "auto" }}>
+                            <svg viewBox={"0 0 " + (BB_W + 100) + " " + BB_H} style={{ width: "100%", minWidth: 500, display: "block", fontFamily: "'IBM Plex Mono',monospace" }}>
 
                               {/* Breadboard Base */}
                               <rect x="20" y="0" width={BB_W} height={BB_H} rx="8" fill={darkMode ? "#151515" : "#fefefe"} stroke={darkMode ? "#333" : "#ccc"} strokeWidth="2" />
@@ -3414,25 +3120,25 @@ void loop() {
                           </div>
 
                           {/* placement steps */}
-                          <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: G, fontWeight: 700, letterSpacing: "1.5px", marginBottom: 12 }}>PLACEMENT STEPS</div>
+                          <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: G, fontWeight: 700, letterSpacing: "1.5px", marginBottom: 12 }}>PLACEMENT STEPS</div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             <div style={{ background: BG3, border: "1px solid " + BD, borderRadius: 10, padding: "13px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-                              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#2d7a2d,#4caf50)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0 }}>1</div>
+                              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#8a5500,#f5a623)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0 }}>1</div>
                               <div>
-                                <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, fontWeight: 800, marginBottom: 3 }}>Power & Ground Rails</div>
+                                <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, fontWeight: 800, marginBottom: 3 }}>Power & Ground Rails</div>
                                 <div style={{ fontSize: 12, color: TXT, marginBottom: 2 }}>Connect {m.voltage} → (+) Red line &nbsp;·&nbsp; GND → (−) Blue line</div>
                               </div>
                             </div>
                             {allItems.map((item, i) => {
                               const isAct = item.kind === "actuator" || item.kind === "ai-actuator";
                               const isAI = item.kind === "ai" || item.kind === "ai-actuator";
-                              const accent = isAct ? "#ff7043" : isAI ? "#7c4dff" : "#4caf50";
+                              const accent = isAct ? "#ff7043" : isAI ? "#7c4dff" : "#f5a623";
                               const bg = isAct ? (darkMode ? "#1a0800" : "#fff8e1") : isAI ? (darkMode ? "#0d0a1a" : "#ede7f6") : (darkMode ? "#071a07" : "#f1f8e9");
                               return (
                                 <div key={item.k} style={{ background: bg, border: "1px solid " + BD, borderLeft: "3px solid " + accent, borderRadius: 10, padding: "13px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
                                   <div style={{ width: 28, height: 28, borderRadius: "50%", background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0 }}>{i + 2}</div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: accent, fontWeight: 800, marginBottom: 4 }}>
+                                    <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: accent, fontWeight: 800, marginBottom: 4 }}>
                                       [COLUMN {i * 3 + 1}] — {item.label}{item.kind === "actuator" ? " — via Relay" : item.kind === "ai-actuator" ? " — AI Added (via Relay)" : isAI ? " — AI Added" : ""}
                                     </div>
                                     {isAct ? (
@@ -3444,6 +3150,14 @@ void loop() {
                                         </div>
                                         <div style={{ fontSize: 11, color: MUT }}>Logic: LOW=ON, HIGH=OFF</div>
                                       </div>
+                                    ) : item.type === "ldr2pin" ? (
+                                      <div>
+                                        <div style={{ fontSize: 12, color: TXT, marginBottom: 3, display: "flex", flexWrap: "wrap", gap: "0 16px" }}>
+                                          <span>Pin 1 → <strong style={{ color: "#29b6f6" }}>{item.pin}</strong> + <strong style={{ color: "#e53935" }}>{m.voltage}</strong> via 10kΩ</span>
+                                          <span>Pin 2 → <strong style={{ color: "#1e88e5" }}>GND rail</strong></span>
+                                        </div>
+                                        <div style={{ fontSize: 11, color: MUT }}>No VCC pin — voltage divider: 10kΩ resistor required</div>
+                                      </div>
                                     ) : (
                                       <div>
                                         <div style={{ fontSize: 12, color: TXT, marginBottom: 3, display: "flex", flexWrap: "wrap", gap: "0 16px" }}>
@@ -3454,7 +3168,7 @@ void loop() {
                                       </div>
                                     )}
                                   </div>
-                                  <span style={{ flexShrink: 0, fontSize: 9, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, color: accent, border: "1px solid " + accent, borderRadius: 4, padding: "2px 7px", alignSelf: "center" }}>
+                                  <span style={{ flexShrink: 0, fontSize: 9, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, color: accent, border: "1px solid " + accent, borderRadius: 4, padding: "2px 7px", alignSelf: "center" }}>
                                     {item.type.toUpperCase()}
                                   </span>
                                 </div>
@@ -3597,13 +3311,13 @@ void loop() {
                           {/* Stats row */}
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
                             {[
-                              { label: "Safe", val: safe, color: "#4caf50", bg: darkMode ? "#0a2a0a" : "#e8f5e9", border: "#4caf50" },
+                              { label: "Safe", val: safe, color: "#f5a623", bg: darkMode ? "#1a1200" : "#fff8e8", border: "#f5a623" },
                               { label: "Warnings", val: warnings2, color: "#ff9800", bg: darkMode ? "#2a1800" : "#fff3e0", border: "#ff9800" },
                               { label: "Dangers", val: dangers, color: "#f44336", bg: darkMode ? "#2a0a0a" : "#ffebee", border: "#f44336" },
                             ].map(s => (
                               <div key={s.label} style={{ background: s.bg, border: "1px solid " + s.border, borderRadius: 10, padding: "16px 12px", textAlign: "center" }}>
                                 <div style={{ fontSize: 36, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.val}</div>
-                                <div style={{ fontSize: 11, color: s.color, fontWeight: 700, marginTop: 4, letterSpacing: "1px", fontFamily: "'JetBrains Mono',monospace" }}>{s.label}</div>
+                                <div style={{ fontSize: 11, color: s.color, fontWeight: 700, marginTop: 4, letterSpacing: "1px", fontFamily: "'IBM Plex Mono',monospace" }}>{s.label}</div>
                               </div>
                             ))}
                           </div>
@@ -3611,7 +3325,7 @@ void loop() {
                           {/* Issues */}
                           {issues.length > 0 && (
                             <div style={{ marginBottom: 20 }}>
-                              <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: MUT, letterSpacing: "2px", fontWeight: 700, marginBottom: 10 }}>ISSUES FOUND</div>
+                              <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: MUT, letterSpacing: "2px", fontWeight: 700, marginBottom: 10 }}>ISSUES FOUND</div>
                               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                                 {issues.map((iss, i) => {
                                   const bdr = iss.type === "danger" ? "#f44336" : "#ff9800";
@@ -3631,9 +3345,9 @@ void loop() {
                           )}
 
                           {issues.length === 0 && rows.length > 0 && (
-                            <div style={{ background: darkMode ? "#0a2a0a" : "#e8f5e9", border: "1px solid #4caf50", borderRadius: 8, padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ fontSize: 18, color: "#4caf50", fontWeight: 900 }}>v</span>
-                              <span style={{ fontSize: 13, color: darkMode ? "#81c784" : "#2e7d32", fontWeight: 600 }}>All selected components are voltage-compatible with your MCU. Safe to build!</span>
+                            <div style={{ background: darkMode ? "#1a1200" : "#fff8e8", border: "1px solid rgba(245,166,35,.5)", borderRadius: 8, padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ fontSize: 18, color: "#f5a623", fontWeight: 900 }}>v</span>
+                              <span style={{ fontSize: 13, color: darkMode ? "#ffcc66" : "#c47d10", fontWeight: 600 }}>All selected components are voltage-compatible with your MCU. Safe to build!</span>
                             </div>
                           )}
 
@@ -3644,20 +3358,20 @@ void loop() {
                           {/* Full component table */}
                           {rows.length > 0 && (
                             <div>
-                              <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: MUT, letterSpacing: "2px", fontWeight: 700, marginBottom: 10 }}>FULL COMPONENT CHECK</div>
+                              <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: MUT, letterSpacing: "2px", fontWeight: 700, marginBottom: 10 }}>FULL COMPONENT CHECK</div>
                               <div style={{ border: "1px solid " + BD, borderRadius: 8, overflow: "hidden" }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 90px 80px", background: BG3 }}>
                                   {["Component", "Type", "Voltage", "Status"].map(h => (
                                     <div key={h} style={{
-                                      padding: "9px 14px", fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, letterSpacing: "1px",
+                                      padding: "9px 14px", fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, letterSpacing: "1px",
                                       borderRight: h !== "Status" ? "1px solid " + BD : "none", borderBottom: "1px solid " + BD
                                     }}>{h}</div>
                                   ))}
                                 </div>
                                 {rows.map((r, i) => {
-                                  const statusColor = r.status === "ok" ? "#4caf50" : "#f44336";
+                                  const statusColor = r.status === "ok" ? "#f5a623" : "#f44336";
                                   const statusLabel = r.status === "ok" ? "OK" : "Danger";
-                                  const kindColor = r.kind === "MCU" ? "#ff9800" : r.kind === "Sensor" ? "#4caf50" : "#29b6f6";
+                                  const kindColor = r.kind === "MCU" ? "#ff9800" : r.kind === "Sensor" ? "#f5a623" : "#29b6f6";
                                   return (
                                     <div key={i} style={{
                                       display: "grid", gridTemplateColumns: "1fr 100px 90px 80px",
@@ -3666,10 +3380,10 @@ void loop() {
                                     }}>
                                       <div style={{ padding: "10px 14px", fontSize: 12, color: TXT, fontWeight: 600, borderRight: "1px solid " + BD }}>{r.label}</div>
                                       <div style={{ padding: "10px 14px", borderRight: "1px solid " + BD, display: "flex", alignItems: "center" }}>
-                                        <span style={{ background: kindColor + "22", border: "1px solid " + kindColor + "66", color: kindColor, fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "2px 8px", fontFamily: "'JetBrains Mono',monospace" }}>{r.kind}</span>
+                                        <span style={{ background: kindColor + "22", border: "1px solid " + kindColor + "66", color: kindColor, fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "2px 8px", fontFamily: "'IBM Plex Mono',monospace" }}>{r.kind}</span>
                                       </div>
-                                      <div style={{ padding: "10px 14px", fontSize: 12, color: MUT, borderRight: "1px solid " + BD, fontFamily: "'JetBrains Mono',monospace" }}>{r.voltage}</div>
-                                      <div style={{ padding: "10px 14px", fontSize: 12, fontWeight: 800, color: statusColor, fontFamily: "'JetBrains Mono',monospace" }}>{statusLabel}</div>
+                                      <div style={{ padding: "10px 14px", fontSize: 12, color: MUT, borderRight: "1px solid " + BD, fontFamily: "'IBM Plex Mono',monospace" }}>{r.voltage}</div>
+                                      <div style={{ padding: "10px 14px", fontSize: 12, fontWeight: 800, color: statusColor, fontFamily: "'IBM Plex Mono',monospace" }}>{statusLabel}</div>
                                     </div>
                                   );
                                 })}
@@ -3770,7 +3484,7 @@ void loop() {
                       const total = items.reduce((s, i) => s + i.price, 0);
                       const cats = ["all", "MCU", "Sensor", "Actuator", "Relay", "Misc"];
 
-                      const CAT_COLOR = { MCU: "#ff9800", Sensor: "#4caf50", Actuator: "#29b6f6", Relay: "#ce93d8", Misc: "#78909c" };
+                      const CAT_COLOR = { MCU: "#ff9800", Sensor: "#f5a623", Actuator: "#29b6f6", Relay: "#ce93d8", Misc: "#78909c" };
 
                       return (
                         <div style={{ background: BG2, border: "1px solid " + BD, borderTop: "none", borderRadius: "0 0 12px 12px" }}>
@@ -3780,7 +3494,7 @@ void loop() {
                             <div style={{ fontSize: 12, color: MUT, marginBottom: 16 }}>Direct links to buy every component from Makers Electronics. Prices verified February 2026. For RAM E-Shop and FUT Electronics, see the Resources tab.</div>
                             <div style={{ background: BG3, border: "1px solid " + BD, borderRadius: 10, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                               <div>
-                                <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: MUT, letterSpacing: "2px", marginBottom: 4, fontWeight: 700 }}>TOTAL ESTIMATED BUDGET</div>
+                                <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: MUT, letterSpacing: "2px", marginBottom: 4, fontWeight: 700 }}>TOTAL ESTIMATED BUDGET</div>
                                 <div style={{ fontSize: 32, fontWeight: 900, color: G, letterSpacing: "-1px" }}>{total.toLocaleString()} <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 0 }}>EGP</span></div>
                                 <div style={{ fontSize: 11, color: MUT, marginTop: 2 }}>Prices from Egyptian stores (2026) · Click to edit in Tools tab</div>
                               </div>
@@ -3789,13 +3503,13 @@ void loop() {
                                   style={{
                                     display: "inline-block", padding: "7px 18px", fontSize: 11, fontWeight: 700,
                                     border: "1px solid " + G, borderRadius: 20, color: G, textDecoration: "none",
-                                    background: "transparent", fontFamily: "'JetBrains Mono',monospace", transition: "all .15s"
+                                    background: "transparent", fontFamily: "'IBM Plex Mono',monospace", transition: "all .15s"
                                   }}
                                   onMouseEnter={e => { e.currentTarget.style.background = G + "22"; }}
                                   onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
                                   makerselectronics.com
                                 </a>
-                                <span style={{ fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace" }}>Prices: February 2026</span>
+                                <span style={{ fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace" }}>Prices: February 2026</span>
                               </div>
                             </div>
                           </div>
@@ -3809,7 +3523,7 @@ void loop() {
                                 <button key={cat} onClick={() => setShopFilter(cat)}
                                   style={{
                                     padding: "5px 14px", fontSize: 11, fontWeight: 700, borderRadius: 20, cursor: "pointer",
-                                    fontFamily: "'JetBrains Mono',monospace",
+                                    fontFamily: "'IBM Plex Mono',monospace",
                                     background: active ? col : "transparent",
                                     color: active ? BG : MUT,
                                     border: "1px solid " + (active ? col : BD),
@@ -3837,12 +3551,12 @@ void loop() {
                                       <span style={{
                                         background: col + "22", border: "1px solid " + col + "66", color: col,
                                         fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "3px 9px",
-                                        fontFamily: "'JetBrains Mono',monospace", flexShrink: 0
+                                        fontFamily: "'IBM Plex Mono',monospace", flexShrink: 0
                                       }}>
                                         {item.cat}
                                       </span>
                                       <span style={{ fontSize: 14, fontWeight: 700, color: TXT, flex: 1 }}>{item.label}</span>
-                                      <span style={{ fontSize: 14, fontWeight: 900, color: G, fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>
+                                      <span style={{ fontSize: 14, fontWeight: 900, color: G, fontFamily: "'IBM Plex Mono',monospace", flexShrink: 0 }}>
                                         {item.price.toLocaleString()} EGP
                                       </span>
                                     </div>
@@ -3859,10 +3573,10 @@ void loop() {
                                         Buy on Makers Electronics
                                       </a>
                                       {item.key === "a-ptc" && (
-                                        <span style={{ fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace" }}>via FUT Electronics</span>
+                                        <span style={{ fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace" }}>via FUT Electronics</span>
                                       )}
                                       {(item.key === "a-lamp" || item.key === "a-thermal" || item.key === "a-aerator" || item.key === "misc" || item.key === "s-bh1750") && (
-                                        <span style={{ fontSize: 10, color: "#ff9800", fontFamily: "'JetBrains Mono',monospace" }}>browse category</span>
+                                        <span style={{ fontSize: 10, color: "#ff9800", fontFamily: "'IBM Plex Mono',monospace" }}>browse category</span>
                                       )}
                                     </div>
                                   </div>
@@ -3871,25 +3585,25 @@ void loop() {
 
                               {/* Total row */}
                               {shopFilter === "all" && (
-                                <div style={{ background: darkMode ? "#0a2a0a" : "#e8f5e9", border: "1px solid " + G + "44", borderRadius: 10, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                  <span style={{ fontSize: 13, fontWeight: 800, color: G, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "1px" }}>TOTAL (standard components)</span>
-                                  <span style={{ fontSize: 18, fontWeight: 900, color: G, fontFamily: "'JetBrains Mono',monospace" }}>{total.toLocaleString()} EGP</span>
+                                <div style={{ background: darkMode ? "#1a1200" : "#fff8e8", border: "1px solid " + G + "44", borderRadius: 10, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ fontSize: 13, fontWeight: 800, color: G, fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "1px" }}>TOTAL (standard components)</span>
+                                  <span style={{ fontSize: 18, fontWeight: 900, color: G, fontFamily: "'IBM Plex Mono',monospace" }}>{total.toLocaleString()} EGP</span>
                                 </div>
                               )}
 
                               {/* AI Added components — no price, just a note */}
                               {aiItems.length > 0 && shopFilter === "all" && (
                                 <div>
-                                  <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: "#7c4dff", letterSpacing: "2px", fontWeight: 800, marginTop: 8, marginBottom: 8, padding: "0 4px" }}>
+                                  <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: "#7c4dff", letterSpacing: "2px", fontWeight: 800, marginTop: 8, marginBottom: 8, padding: "0 4px" }}>
                                     AI ADDED — verify price locally before buying
                                   </div>
                                   {aiItems.map(c => (
                                     <div key={c.label} style={{ background: darkMode ? "#0d0a1a" : "#ede7f6", border: "1px solid #7c4dff55", borderRadius: 10, padding: "12px 18px", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                                      <span style={{ background: "#7c4dff22", border: "1px solid #7c4dff88", color: "#7c4dff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "3px 9px", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>
+                                      <span style={{ background: "#7c4dff22", border: "1px solid #7c4dff88", color: "#7c4dff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "3px 9px", fontFamily: "'IBM Plex Mono',monospace", flexShrink: 0 }}>
                                         AI ADDED
                                       </span>
                                       <span style={{ fontSize: 14, fontWeight: 700, color: TXT, flex: 1 }}>{c.label}</span>
-                                      <span style={{ fontSize: 11, color: "#7c4dff", fontFamily: "'JetBrains Mono',monospace", flexShrink: 0 }}>
+                                      <span style={{ fontSize: 11, color: "#7c4dff", fontFamily: "'IBM Plex Mono',monospace", flexShrink: 0 }}>
                                         {c.type === "I2C" ? "I2C — " + c.pin : c.pin} · check local price
                                       </span>
                                     </div>
@@ -4003,7 +3717,7 @@ void loop() {
                         PIN: { bg: darkMode ? "#0a1a2a" : "#e3f2fd", color: "#0277bd", label: "PIN" },
                         INTERRUPT: { bg: darkMode ? "#2a0a2a" : "#fce4ec", color: "#880e4f", label: "INTERRUPT" },
                         FUNCTION: { bg: darkMode ? "#1a1a0a" : "#f9fbe7", color: "#558b2f", label: "FUNCTION" },
-                        SERIAL: { bg: darkMode ? "#0a2a1a" : "#e8f5e9", color: "#2e7d32", label: "SERIAL" },
+                        SERIAL: { bg: darkMode ? "#0a2a1a" : "#fff8e8", color: "#c47d10", label: "SERIAL" },
                         RELAY: { bg: darkMode ? "#2a1a0a" : "#fff8e1", color: "#f57f17", label: "RELAY" },
                         SENSOR: { bg: darkMode ? "#0a2a2a" : "#e0f7fa", color: "#006064", label: "SENSOR" },
                         CONTROL: { bg: darkMode ? "#2a0a0a" : "#fce4ec", color: "#b71c1c", label: "CONTROL" },
@@ -4013,7 +3727,7 @@ void loop() {
 
                       return (
                         <div style={{ border: "1px solid " + BD, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "auto", maxHeight: 580 }}>
-                          <div style={{ padding: "12px 16px", background: darkMode ? "#0a1f0a" : "#e8f5e9", borderBottom: "1px solid " + BD, fontSize: 12, color: MUT, lineHeight: 1.6 }}>
+                          <div style={{ padding: "12px 16px", background: darkMode ? "#0a1f0a" : "#fff8e8", borderBottom: "1px solid " + BD, fontSize: 12, color: MUT, lineHeight: 1.6 }}>
                             Each line of your code is explained below in plain English. Hover or read each label to understand exactly what that line does — no prior electronics experience needed.
                           </div>
                           {genCode.split("\n").map((line, i) => {
@@ -4022,27 +3736,27 @@ void loop() {
                             const isComment = trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*") || trimmed === " *" || trimmed.startsWith(" * ║") || trimmed.startsWith(" * ╔") || trimmed.startsWith(" * ╠") || trimmed.startsWith(" * ╚") || trimmed === " */";
                             const isDefine = trimmed.startsWith("#define") || trimmed.startsWith("#include");
                             const isKeyword = /^(void|int|float|bool|if|else|while|for|return|const|long|unsigned|volatile)\b/.test(trimmed);
-                            const codeColor = isComment ? (darkMode ? "#4a7a4a" : "#607d4a") : isDefine ? "#e65100" : isKeyword ? (darkMode ? "#81c784" : "#1b5e20") : (darkMode ? "#a5d6a7" : "#1a3a1a");
-                            const rowBg = i % 2 === 0 ? (darkMode ? "#020e02" : "#f0f7f0") : (darkMode ? "#041004" : "#e8f5e9");
+                            const codeColor = isComment ? (darkMode ? "rgba(245,166,35,.4)" : "#607d4a") : isDefine ? "#e65100" : isKeyword ? (darkMode ? "#ffcc66" : "#8a5500") : (darkMode ? "#f5cc80" : "#1a3a1a");
+                            const rowBg = i % 2 === 0 ? (darkMode ? "#020e02" : "#f0f7f0") : (darkMode ? "#041004" : "#fff8e8");
                             const tc = expl ? tagColors[expl.tag] || tagColors.VAR : null;
 
                             return (
                               <div key={i} style={{ background: rowBg, borderBottom: "1px solid " + (darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)") }}>
                                 <div style={{ display: "flex", alignItems: "flex-start" }}>
-                                  <div style={{ width: 34, flexShrink: 0, padding: "5px 0 5px 10px", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: MUT, userSelect: "none", borderRight: "1px solid " + (darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.10)"), textAlign: "right", paddingRight: 6, background: darkMode ? "#010901" : "#dcedc8" }}>{i + 1}</div>
-                                  <div style={{ padding: "5px 10px", fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: codeColor, flex: 1, fontStyle: isComment ? "italic" : "normal" }}>
+                                  <div style={{ width: 34, flexShrink: 0, padding: "5px 0 5px 10px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: MUT, userSelect: "none", borderRight: "1px solid " + (darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.10)"), textAlign: "right", paddingRight: 6, background: darkMode ? "#010901" : "#dcedc8" }}>{i + 1}</div>
+                                  <div style={{ padding: "5px 10px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: codeColor, flex: 1, fontStyle: isComment ? "italic" : "normal" }}>
                                     {line || " "}
                                   </div>
                                 </div>
                                 {expl && expl.tag !== "SECTION" && (
                                   <div style={{ display: "flex", gap: 10, padding: "6px 10px 8px 44px", background: tc.bg, borderTop: "1px solid " + (darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)") }}>
-                                    <span style={{ flexShrink: 0, fontSize: 9, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, color: tc.color, background: "transparent", border: "1px solid " + tc.color, borderRadius: 4, padding: "2px 6px", alignSelf: "flex-start", marginTop: 1 }}>{expl.tag}</span>
+                                    <span style={{ flexShrink: 0, fontSize: 9, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, color: tc.color, background: "transparent", border: "1px solid " + tc.color, borderRadius: 4, padding: "2px 6px", alignSelf: "flex-start", marginTop: 1 }}>{expl.tag}</span>
                                     <span style={{ fontSize: 12, color: darkMode ? "#d0e8d0" : "#1a3a1a", lineHeight: 1.6 }}>{expl.text}</span>
                                   </div>
                                 )}
                                 {expl && expl.tag === "SECTION" && (
                                   <div style={{ padding: "4px 10px 6px 44px", background: darkMode ? "#0d1f0d" : "#c8e6c9" }}>
-                                    <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, color: G, letterSpacing: "1.5px" }}>{expl.text}</span>
+                                    <span style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, color: G, letterSpacing: "1.5px" }}>{expl.text}</span>
                                   </div>
                                 )}
                               </div>
@@ -4126,12 +3840,12 @@ void loop() {
                         <div style={{ padding: "20px 0", animation: "fadeUp .3s ease" }}>
 
                           {/* MCU Banner */}
-                          <div style={{ background: "rgba(76,175,80,.07)", border: "1px solid rgba(76,175,80,.2)", borderRadius: 16, padding: "18px 22px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                            <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(76,175,80,.12)", border: "1px solid rgba(76,175,80,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <div style={{ background: "rgba(245,166,35,.07)", border: "1px solid rgba(245,166,35,.2)", borderRadius: 16, padding: "18px 22px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                            <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(245,166,35,.12)", border: "1px solid rgba(245,166,35,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <span style={{ fontSize: 20 }}>~</span>
                             </div>
                             <div>
-                              <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: "rgba(76,175,80,.7)", letterSpacing: "2px", fontWeight: 800, marginBottom: 4 }}>UPLOAD GUIDE FOR YOUR BOARD</div>
+                              <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: "rgba(245,166,35,.7)", letterSpacing: "2px", fontWeight: 800, marginBottom: 4 }}>UPLOAD GUIDE FOR YOUR BOARD</div>
                               <div style={{ fontSize: 16, fontWeight: 800, color: darkMode ? "#dcedc8" : "#0d1f0d" }}>{info.name}</div>
                               <div style={{ fontSize: 11, color: darkMode ? "rgba(255,255,255,.45)" : "rgba(0,0,0,.5)", marginTop: 3 }}>Baud rate: {info.speed} · Port: {info.port}</div>
                             </div>
@@ -4142,20 +3856,20 @@ void loop() {
                             {steps.map((s, i) => (
                               <div key={s.n} style={{ background: darkMode ? "rgba(255,255,255,.025)" : "rgba(0,0,0,.025)", border: "1px solid " + (darkMode ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.08)"), borderRadius: 16, padding: "18px 20px", position: "relative", overflow: "hidden", animationDelay: (i * .05) + "s", animation: "fadeUp .4s both" }}>
                                 {/* Left accent bar */}
-                                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "linear-gradient(to bottom,rgba(76,175,80,.8),rgba(76,175,80,.2))", borderRadius: "16px 0 0 16px" }} />
+                                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "linear-gradient(to bottom,rgba(245,166,35,.8),rgba(245,166,35,.2))", borderRadius: "16px 0 0 16px" }} />
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                                   {/* Step number */}
-                                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(76,175,80,.1)", border: "1.5px solid rgba(76,175,80,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 800, color: "#4caf50" }}>{s.n}</div>
+                                  <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(245,166,35,.1)", border: "1.5px solid rgba(245,166,35,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, fontWeight: 800, color: "#f5a623" }}>{s.n}</div>
                                   <div style={{ flex: 1 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                                      <span style={{ fontSize: 14, fontWeight: 700, color: darkMode ? "rgba(255,255,255,.92)" : "rgba(0,0,0,.85)", fontFamily: "'Outfit',sans-serif" }}>{s.title}</span>
-                                      <span style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, color: "rgba(76,175,80,.6)", letterSpacing: "2px", background: "rgba(76,175,80,.08)", border: "1px solid rgba(76,175,80,.15)", borderRadius: 20, padding: "2px 9px" }}>{s.tag}</span>
+                                      <span style={{ fontSize: 14, fontWeight: 700, color: darkMode ? "rgba(255,255,255,.92)" : "rgba(0,0,0,.85)", fontFamily: "'Instrument Sans',sans-serif" }}>{s.title}</span>
+                                      <span style={{ fontSize: 9, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, color: "rgba(245,166,35,.6)", letterSpacing: "2px", background: "rgba(245,166,35,.08)", border: "1px solid rgba(245,166,35,.15)", borderRadius: 20, padding: "2px 9px" }}>{s.tag}</span>
                                     </div>
                                     <div style={{ fontSize: 12.5, color: darkMode ? "rgba(255,255,255,.55)" : "rgba(0,0,0,.55)", lineHeight: 1.75 }}>{s.body}</div>
-                                    {s.tip && <div style={{ marginTop: 10, fontSize: 11, color: "rgba(76,175,80,.7)", fontFamily: "'JetBrains Mono',monospace", background: "rgba(76,175,80,.06)", border: "1px solid rgba(76,175,80,.12)", borderRadius: 8, padding: "7px 11px", lineHeight: 1.6 }}>{s.tip}</div>}
+                                    {s.tip && <div style={{ marginTop: 10, fontSize: 11, color: "rgba(245,166,35,.7)", fontFamily: "'IBM Plex Mono',monospace", background: "rgba(245,166,35,.06)", border: "1px solid rgba(245,166,35,.12)", borderRadius: 8, padding: "7px 11px", lineHeight: 1.6 }}>{s.tip}</div>}
                                     {s.warn && <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: darkMode ? "#ffcc02" : "#7a5500", background: darkMode ? "rgba(255,200,0,.07)" : "rgba(255,200,0,.12)", border: "1px solid rgba(255,200,0,.25)", borderRadius: 8, padding: "8px 12px", lineHeight: 1.6 }}>"WARNING: " + s.warn}</div>}
                                     {s.extra && <div style={{ marginTop: 10, fontSize: 11.5, color: darkMode ? "rgba(255,255,255,.5)" : "rgba(0,0,0,.5)", background: darkMode ? "rgba(255,255,255,.03)" : "rgba(0,0,0,.04)", border: "1px dashed " + (darkMode ? "rgba(255,255,255,.1)" : "rgba(0,0,0,.12)"), borderRadius: 10, padding: "10px 14px", lineHeight: 1.75 }}>{s.extra}</div>}
-                                    {s.link && <a href={s.link} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#4caf50", border: "1px solid rgba(76,175,80,.25)", borderRadius: 20, padding: "5px 14px", textDecoration: "none", background: "rgba(76,175,80,.06)", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(76,175,80,.12)"; e.currentTarget.style.borderColor = "rgba(76,175,80,.5)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(76,175,80,.06)"; e.currentTarget.style.borderColor = "rgba(76,175,80,.25)" }}>{s.linkText} →</a>}
+                                    {s.link && <a href={s.link} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: "#f5a623", border: "1px solid rgba(245,166,35,.25)", borderRadius: 20, padding: "5px 14px", textDecoration: "none", background: "rgba(245,166,35,.06)", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(245,166,35,.12)"; e.currentTarget.style.borderColor = "rgba(245,166,35,.5)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(245,166,35,.06)"; e.currentTarget.style.borderColor = "rgba(245,166,35,.25)" }}>{s.linkText} →</a>}
                                   </div>
                                 </div>
                               </div>
@@ -4164,11 +3878,11 @@ void loop() {
 
                           {/* Error Decoder Table */}
                           <div style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, letterSpacing: "3px", color: "rgba(76,175,80,.8)", marginBottom: 14 }}>COMMON UPLOAD ERRORS — WHAT THEY MEAN</div>
+                            <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, letterSpacing: "3px", color: "rgba(245,166,35,.8)", marginBottom: 14 }}>COMMON UPLOAD ERRORS — WHAT THEY MEAN</div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                               {errTable.map(([err, fix]) => (
                                 <div key={err} style={{ background: darkMode ? "rgba(255,255,255,.02)" : "rgba(0,0,0,.02)", border: "1px solid " + (darkMode ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.07)"), borderRadius: 12, padding: "13px 16px", display: "flex", gap: 16, flexWrap: "wrap" }}>
-                                  <div style={{ flex: "0 0 auto", maxWidth: 280, fontFamily: "'JetBrains Mono',monospace", fontSize: 10.5, fontWeight: 600, color: darkMode ? "rgba(255,120,120,.8)" : "rgba(180,0,0,.7)", background: darkMode ? "rgba(255,80,80,.07)" : "rgba(200,0,0,.05)", border: "1px solid " + (darkMode ? "rgba(255,80,80,.15)" : "rgba(200,0,0,.12)"), borderRadius: 8, padding: "6px 10px", lineHeight: 1.5, wordBreak: "break-all" }}>{err}</div>
+                                  <div style={{ flex: "0 0 auto", maxWidth: 280, fontFamily: "'IBM Plex Mono',monospace", fontSize: 10.5, fontWeight: 600, color: darkMode ? "rgba(255,120,120,.8)" : "rgba(180,0,0,.7)", background: darkMode ? "rgba(255,80,80,.07)" : "rgba(200,0,0,.05)", border: "1px solid " + (darkMode ? "rgba(255,80,80,.15)" : "rgba(200,0,0,.12)"), borderRadius: 8, padding: "6px 10px", lineHeight: 1.5, wordBreak: "break-all" }}>{err}</div>
                                   <div style={{ flex: 1, fontSize: 12, color: darkMode ? "rgba(255,255,255,.55)" : "rgba(0,0,0,.55)", lineHeight: 1.7, minWidth: 200 }}>{fix}</div>
                                 </div>
                               ))}
@@ -4195,17 +3909,17 @@ void loop() {
                               : <button className="pbtn" style={{ fontSize: 11, padding: "6px 12px" }} onClick={startSerial}>Start</button>}
                           </div>
                         </div>
-                        <div style={{ background: "#020802", padding: "10px 14px", fontFamily: "'JetBrains Mono',monospace", fontSize: 11, lineHeight: 1.9, minHeight: 200, maxHeight: 400, overflow: "auto" }}>
+                        <div style={{ background: "#08070a", padding: "10px 14px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, lineHeight: 1.9, minHeight: 200, maxHeight: 400, overflow: "auto" }}>
                           {serialLines.length === 0 ? (
-                            <div style={{ color: "#2d5a2d", textAlign: "center", paddingTop: 40 }}>
+                            <div style={{ color: "rgba(245,166,35,.2)", textAlign: "center", paddingTop: 40 }}>
                               {serialRunning ? "Waiting for first reading..." : "Press Start to begin simulation"}
                             </div>
                           ) : serialLines.map((line, i) => {
                             const isLatest = i === serialLines.length - 1;
                             return (
-                              <div key={i} style={{ color: isLatest ? "#81c784" : "#4a7a4a", borderBottom: "1px solid #0a1a0a", paddingBottom: 1 }}>
-                                <span style={{ color: "#2d6a2d" }}>{line.slice(0, 8)}</span>
-                                <span style={{ color: isLatest ? "#a5d6a7" : "#4a7a4a" }}>{line.slice(8)}</span>
+                              <div key={i} style={{ color: isLatest ? "#ffcc66" : "rgba(245,166,35,.4)", borderBottom: "1px solid #0a1a0a", paddingBottom: 1 }}>
+                                <span style={{ color: "rgba(245,166,35,.3)" }}>{line.slice(0, 8)}</span>
+                                <span style={{ color: isLatest ? "#f5cc80" : "rgba(245,166,35,.4)" }}>{line.slice(8)}</span>
                               </div>
                             );
                           })}
@@ -4219,7 +3933,7 @@ void loop() {
                       </div>
                     )}
                     {/* Upload Guide shortcut */}
-                    <div style={{ background: "rgba(76,175,80,.06)", border: "1px solid rgba(76,175,80,.18)", borderRadius: 12, padding: "12px 16px", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ background: "rgba(245,166,35,.06)", border: "1px solid rgba(245,166,35,.18)", borderRadius: 12, padding: "12px 16px", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: G, marginBottom: 3 }}>Never uploaded to Arduino before?</div>
                         <div style={{ fontSize: 11, color: darkMode ? "rgba(255,255,255,.45)" : "rgba(0,0,0,.45)", lineHeight: 1.6 }}>Step-by-step guide for your {MCU[mcu]?.name || "board"}: COM port, CH340 driver, board package{mcu === "nano" ? ", Old Bootloader setting" : mcu === "esp32" || mcu === "esp8266" ? ", board package install" : ""} & error decoder.</div>
@@ -4247,19 +3961,19 @@ void loop() {
                       <div className="grid-3" style={{ gap: 12 }}>
                         <a href="https://forms.gle/oM82q6gPFh96Nq9V9" target="_blank" rel="noreferrer"
                           style={{ background: BG2, border: "1px solid " + BD2, borderRadius: 9, padding: "11px 13px", textDecoration: "none", display: "flex", flexDirection: "column", gap: 4 }}>
-                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: G, letterSpacing: "1px" }}>REQUEST</span>
+                          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, fontWeight: 700, color: G, letterSpacing: "1px" }}>REQUEST</span>
                           <span style={{ fontSize: 12, fontWeight: 700, color: TXT }}>Missing species, sensor, or actuator?</span>
                           <span style={{ fontSize: 11, color: MUT }}>Submit a request to add it</span>
                         </a>
                         <a href="https://wa.me/201065682294" target="_blank" rel="noreferrer"
                           style={{ background: BG2, border: "1px solid " + BD2, borderRadius: 9, padding: "11px 13px", textDecoration: "none", display: "flex", flexDirection: "column", gap: 4 }}>
-                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: G, letterSpacing: "1px" }}>WHATSAPP</span>
+                          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, fontWeight: 700, color: G, letterSpacing: "1px" }}>WHATSAPP</span>
                           <span style={{ fontSize: 12, fontWeight: 700, color: TXT }}>01065682294</span>
                           <span style={{ fontSize: 11, color: MUT }}>Inquiries & project help</span>
                         </a>
                         <a href="https://www.linkedin.com/in/khaled-elseify" target="_blank" rel="noreferrer"
                           style={{ background: BG2, border: "1px solid " + BD2, borderRadius: 9, padding: "11px 13px", textDecoration: "none", display: "flex", flexDirection: "column", gap: 4 }}>
-                          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 700, color: G, letterSpacing: "1px" }}>LINKEDIN</span>
+                          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, fontWeight: 700, color: G, letterSpacing: "1px" }}>LINKEDIN</span>
                           <span style={{ fontSize: 12, fontWeight: 700, color: TXT }}>Khaled Elseify</span>
                           <span style={{ fontSize: 11, color: MUT }}>Connect professionally</span>
                         </a>
@@ -4275,7 +3989,7 @@ void loop() {
             <div style={{ flex: mainTab === "chat" ? 1 : 0, display: mainTab === "chat" ? "flex" : "none", flexDirection: "column", borderLeft: "1px solid " + BD }}>
               <div style={{ padding: "13px 16px", borderBottom: "1px solid " + BD, background: BG2, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 9, background: "linear-gradient(135deg," + G4 + "," + G3 + ")", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 10, color: "#fff", letterSpacing: "-.5px" }}>AI</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 800, fontSize: 10, color: "#fff", letterSpacing: "-.5px" }}>AI</span>
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>Falla7 AI Assistant</div>
@@ -4301,7 +4015,7 @@ void loop() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                   {["Arduino Uno vs ESP32?", "How to wire a relay?", "Best sensors for tilapia?", "Explain closed-loop control", "What libraries do I need?"].map(q => (
                     <button key={q} onClick={() => setChatIn(q)}
-                      style={{ background: BG3, border: "1px solid " + BD, color: G2, padding: "5px 10px", borderRadius: 16, fontSize: 11, cursor: "pointer", fontFamily: "'Outfit',sans-serif" }}>
+                      style={{ background: BG3, border: "1px solid " + BD, color: G2, padding: "5px 10px", borderRadius: 16, fontSize: 11, cursor: "pointer", fontFamily: "'Instrument Sans',sans-serif" }}>
                       {q}
                     </button>
                   ))}
@@ -4322,9 +4036,9 @@ void loop() {
                 <div className="grid-2" style={{ gap: 12, marginBottom: 24 }}>
                   {[["A", compareA, setCompareA], ["B", compareB, setCompareB]].map(([slot, val, setter]) => (
                     <div key={slot}>
-                      <div style={{ fontSize: 11, color: G, fontFamily: "'JetBrains Mono',monospace", marginBottom: 8, fontWeight: 700 }}>SENSOR {slot}</div>
+                      <div style={{ fontSize: 11, color: G, fontFamily: "'IBM Plex Mono',monospace", marginBottom: 8, fontWeight: 700 }}>SENSOR {slot}</div>
                       <select value={val} onChange={e => setter(e.target.value)}
-                        style={{ width: "100%", background: BG3, border: "1.5px solid " + BD2, color: TXT, padding: "10px 12px", borderRadius: 9, fontFamily: "'Outfit',sans-serif", fontSize: 13, outline: "none", cursor: "pointer" }}>
+                        style={{ width: "100%", background: BG3, border: "1.5px solid " + BD2, color: TXT, padding: "10px 12px", borderRadius: 9, fontFamily: "'Instrument Sans',sans-serif", fontSize: 13, outline: "none", cursor: "pointer" }}>
                         {Object.entries(SENSOR_COMPARE).map(([k, v]) => (
                           <option key={k} value={k} style={{ background: BG2 }}>{v.name}</option>
                         ))}
@@ -4338,7 +4052,7 @@ void loop() {
                   return (
                     <div style={{ background: BG3, border: "1px solid " + BD, borderRadius: 14, overflow: "hidden" }}>
                       <div className="grid-compare" style={{ display: "grid" }}>
-                        <div style={{ background: BG2, padding: "12px 16px", borderBottom: "1px solid " + BD, fontSize: 11, color: MUT, fontFamily: "'JetBrains Mono',monospace" }}>FIELD</div>
+                        <div style={{ background: BG2, padding: "12px 16px", borderBottom: "1px solid " + BD, fontSize: 11, color: MUT, fontFamily: "'IBM Plex Mono',monospace" }}>FIELD</div>
                         {[a, b].map((s, i) => (
                           <div key={i} style={{ background: BG2, padding: "12px 16px", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, fontWeight: 800, fontSize: 14, color: G }}>
                             {s.name}
@@ -4375,7 +4089,7 @@ void loop() {
 
                 {/* Header */}
                 <div style={{ marginBottom: 28 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: G, letterSpacing: "3px", fontWeight: 800, marginBottom: 8 }}>FALLA7 DEBUG CENTER</div>
+                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: G, letterSpacing: "3px", fontWeight: 800, marginBottom: 8 }}>FALLA7 DEBUG CENTER</div>
                   <h2 style={{ fontSize: 26, fontWeight: 900, marginBottom: 6, color: TXT }}>Troubleshooting Guide</h2>
                   <p style={{ color: darkMode ? "rgba(165,214,167,.65)" : MUT, fontSize: 15, lineHeight: 1.6 }}>{TROUBLE.length} problems covered across {[...new Set(TROUBLE.map(t => t.cat))].length} categories — click any problem to see step-by-step fixes.</p>
                 </div>
@@ -4386,7 +4100,7 @@ void loop() {
                   const [activeCat, setActiveCat] = React.useState("ALL");
                   const [showCodes, setShowCodes] = React.useState(null);
                   const filtered = activeCat === "ALL" ? TROUBLE : TROUBLE.filter(t => t.cat === activeCat);
-                  const catColors = { "UPLOAD & IDE": "#4caf50", "SENSOR ISSUES": "#66bb6a", "RELAY & ACTUATORS": "#ff7043", "MCU PROBLEMS": "#ffa726", "CODE ISSUES": "#42a5f5" };
+                  const catColors = { "UPLOAD & IDE": "#f5a623", "SENSOR ISSUES": "#f0b840", "RELAY & ACTUATORS": "#ff7043", "MCU PROBLEMS": "#ffa726", "CODE ISSUES": "#42a5f5" };
 
                   return (
                     <>
@@ -4395,7 +4109,7 @@ void loop() {
                         {["ALL", ...cats].map(cat => (
                           <button key={cat} onClick={() => setActiveCat(cat)}
                             style={{
-                              padding: "7px 16px", borderRadius: 100, fontFamily: "'JetBrains Mono',monospace",
+                              padding: "7px 16px", borderRadius: 100, fontFamily: "'IBM Plex Mono',monospace",
                               fontSize: 11, fontWeight: 800, letterSpacing: "1px", cursor: "pointer",
                               border: "1.5px solid " + (activeCat === cat ? (catColors[cat] || G) : BD),
                               background: activeCat === cat ? (catColors[cat] || G) + "22" : "transparent",
@@ -4408,7 +4122,7 @@ void loop() {
                       </div>
 
                       {/* Problem count badge */}
-                      <div style={{ fontSize: 12, color: MUT, fontFamily: "'JetBrains Mono',monospace", marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, color: MUT, fontFamily: "'IBM Plex Mono',monospace", marginBottom: 16 }}>
                         Showing {filtered.length} of {TROUBLE.length} problems
                       </div>
 
@@ -4427,7 +4141,7 @@ void loop() {
                                 <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
                                   <div style={{ width: 4, height: 36, borderRadius: 2, background: col, flexShrink: 0 }} />
                                   <div>
-                                    <div style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: col, fontWeight: 800, letterSpacing: "1.5px", marginBottom: 3 }}>{item.cat}</div>
+                                    <div style={{ fontSize: 9, fontFamily: "'IBM Plex Mono',monospace", color: col, fontWeight: 800, letterSpacing: "1.5px", marginBottom: 3 }}>{item.cat}</div>
                                     <div style={{ fontWeight: 700, fontSize: 15, color: troubleQ === idx ? col : TXT, lineHeight: 1.3 }}>{item.q}</div>
                                   </div>
                                 </div>
@@ -4435,7 +4149,7 @@ void loop() {
                                   width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
                                   background: troubleQ === idx ? col + "22" : "transparent",
                                   border: "1.5px solid " + (troubleQ === idx ? col : BD),
-                                  fontFamily: "'JetBrains Mono',monospace", fontSize: 16, color: col, fontWeight: 800, flexShrink: 0,
+                                  fontFamily: "'IBM Plex Mono',monospace", fontSize: 16, color: col, fontWeight: 800, flexShrink: 0,
                                   transition: "all .25s"
                                 }}>
                                   {troubleQ === idx ? "−" : "+"}
@@ -4467,16 +4181,16 @@ void loop() {
 
                       {/* Quick Diagnostic Codes */}
                       <div style={{ marginBottom: 32 }}>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: G, letterSpacing: "3px", fontWeight: 800, marginBottom: 16 }}>QUICK DIAGNOSTIC SKETCHES</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: G, letterSpacing: "3px", fontWeight: 800, marginBottom: 16 }}>QUICK DIAGNOSTIC SKETCHES</div>
                         <p style={{ fontSize: 14, color: darkMode ? "rgba(165,214,167,.65)" : MUT, marginBottom: 16, lineHeight: 1.6 }}>
                           Paste these into Arduino IDE to test components independently. Diagnose before adding to your full project.
                         </p>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
                           {[
-                            { key: "i2c_scan", label: "I2C Scanner", icon: "I2C", desc: "Finds all I2C devices and their addresses", color: "#4caf50" },
-                            { key: "analog_test", label: "Analog Pin Tester", icon: "ADC", desc: "Reads all analog pins — check sensor signal", color: "#66bb6a" },
+                            { key: "i2c_scan", label: "I2C Scanner", icon: "I2C", desc: "Finds all I2C devices and their addresses", color: "#f5a623" },
+                            { key: "analog_test", label: "Analog Pin Tester", icon: "ADC", desc: "Reads all analog pins — check sensor signal", color: "#f0b840" },
                             { key: "relay_test", label: "Relay Cycler", icon: "RLY", desc: "Clicks relay ON/OFF every 2 seconds", color: "#ff7043" },
-                            { key: "dht_test", label: "DHT22/DHT11 Tester", icon: "DHT", desc: "Tests DHT sensor with full error reporting", color: "#81c784" },
+                            { key: "dht_test", label: "DHT22/DHT11 Tester", icon: "DHT", desc: "Tests DHT sensor with full error reporting", color: "#ffcc66" },
                             { key: "esp32_adc", label: "ESP32 ADC Tester", icon: "ESP", desc: "Reads GPIO34 with voltage conversion", color: "#ffa726" },
                           ].map(({ key, label, icon, desc, color }) => (
                             <div key={key}
@@ -4489,12 +4203,12 @@ void loop() {
                               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                                 <div style={{
                                   background: color + "22", border: "1px solid " + color + "55", borderRadius: 8, padding: "4px 10px",
-                                  fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 800, color: color
+                                  fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, fontWeight: 800, color: color
                                 }}>{icon}</div>
                                 <span style={{ fontWeight: 700, fontSize: 14, color: TXT }}>{label}</span>
                               </div>
                               <div style={{ fontSize: 12, color: darkMode ? "rgba(165,214,167,.6)" : MUT, lineHeight: 1.5, marginBottom: 10 }}>{desc}</div>
-                              <div style={{ fontSize: 11, color: color, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>
+                              <div style={{ fontSize: 11, color: color, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }}>
                                 {showCodes === key ? "▲ Hide code" : "▼ Show code"}
                               </div>
                               {showCodes === key && (
@@ -4506,7 +4220,7 @@ void loop() {
                                     </button>
                                   </div>
                                   <pre style={{
-                                    fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: darkMode ? "#a5d6a7" : "#1a3a1a",
+                                    fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: darkMode ? "#f5cc80" : "#1a3a1a",
                                     lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0,
                                     background: darkMode ? "#020c02" : "#f0faf0", borderRadius: 8, padding: "12px 14px",
                                     border: "1px solid " + BD, maxHeight: 280, overflow: "auto"
@@ -4522,7 +4236,7 @@ void loop() {
 
                       {/* Common error messages table */}
                       <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: G, letterSpacing: "3px", fontWeight: 800, marginBottom: 16 }}>COMMON ERROR MESSAGES → QUICK FIX</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: G, letterSpacing: "3px", fontWeight: 800, marginBottom: 16 }}>COMMON ERROR MESSAGES → QUICK FIX</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {[
                             ["avrdude: stk500_recv() programmer not responding", "Wrong bootloader (Nano). Tools → Processor → Old Bootloader"],
@@ -4541,7 +4255,7 @@ void loop() {
                               background: i % 2 === 0 ? BG3 : BG2, borderRadius: 10, overflow: "hidden", border: "1px solid " + BD
                             }}>
                               <div style={{ padding: "10px 14px", borderRight: "1px solid " + BD }}>
-                                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: "#ef9a9a", lineHeight: 1.5 }}>{err}</div>
+                                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#ef9a9a", lineHeight: 1.5 }}>{err}</div>
                               </div>
                               <div style={{ padding: "10px 14px" }}>
                                 <div style={{ fontSize: 13, color: TXT, lineHeight: 1.5 }}>{fix}</div>
@@ -4554,7 +4268,7 @@ void loop() {
                       {/* Bottom CTA */}
                       <div style={{
                         background: BG3, border: "1px solid " + BD2, borderRadius: 14, padding: "20px 24px", display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap",
-                        background: darkMode ? "rgba(76,175,80,.04)" : "rgba(76,175,80,.06)"
+                        background: darkMode ? "rgba(245,166,35,.04)" : "rgba(245,166,35,.06)"
                       }}>
                         <div style={{ flex: 1, minWidth: 200 }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: G2, marginBottom: 4 }}>Still stuck? Get direct help.</div>
@@ -4562,7 +4276,7 @@ void loop() {
                         </div>
                         <button className="pbtn" style={{ fontSize: 14 }} onClick={() => setMainTab("chat")}>Open AI Assistant</button>
                         <a href="https://wa.me/201065682294" target="_blank" rel="noreferrer"
-                          style={{ background: BG2, border: "1px solid " + BD2, color: G2, padding: "12px 20px", borderRadius: 10, fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
+                          style={{ background: BG2, border: "1px solid " + BD2, color: G2, padding: "12px 20px", borderRadius: 10, fontFamily: "'Instrument Sans',sans-serif", fontWeight: 700, fontSize: 14, textDecoration: "none", whiteSpace: "nowrap" }}>
                           💬 WhatsApp Help
                         </a>
                       </div>
@@ -4591,21 +4305,21 @@ void loop() {
                     : <button className="pbtn" style={{ fontSize: 12 }} onClick={startSerial}>Start Simulation</button>}
                 </div>
               </div>
-              <div style={{ flex: 1, overflow: "auto", background: "#020802", padding: "12px 16px", fontFamily: "'JetBrains Mono',monospace", fontSize: 12, lineHeight: 1.8 }}>
+              <div style={{ flex: 1, overflow: "auto", background: "#08070a", padding: "12px 16px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, lineHeight: 1.8 }}>
                 {serialLines.length === 0 ? (
-                  <div style={{ color: "#2d5a2d", textAlign: "center", marginTop: 60, fontSize: 13 }}>
+                  <div style={{ color: "rgba(245,166,35,.2)", textAlign: "center", marginTop: 60, fontSize: 13 }}>
                     {serialRunning ? "Waiting for first reading..." : "Press Start Simulation to begin"}
                     <br />
-                    <span style={{ fontSize: 11, display: "block", marginTop: 8, color: "#1e3a1e" }}>
+                    <span style={{ fontSize: 11, display: "block", marginTop: 8, color: "rgba(245,166,35,.15)" }}>
                       {Object.keys(sensors).length === 0 ? "Go to Code Generator and select sensors first" : ""}
                     </span>
                   </div>
                 ) : serialLines.map((line, i) => {
                   const isLatest = i === serialLines.length - 1;
                   return (
-                    <div key={i} style={{ color: isLatest ? "#81c784" : "#4a7a4a", borderBottom: "1px solid #0a1a0a", paddingBottom: 2 }}>
-                      <span style={{ color: "#2d6a2d" }}>{line.slice(0, 8)}</span>
-                      <span style={{ color: isLatest ? "#a5d6a7" : "#4a7a4a" }}>{line.slice(8)}</span>
+                    <div key={i} style={{ color: isLatest ? "#ffcc66" : "rgba(245,166,35,.4)", borderBottom: "1px solid #0a1a0a", paddingBottom: 2 }}>
+                      <span style={{ color: "rgba(245,166,35,.3)" }}>{line.slice(0, 8)}</span>
+                      <span style={{ color: isLatest ? "#f5cc80" : "rgba(245,166,35,.4)" }}>{line.slice(8)}</span>
                     </div>
                   );
                 })}
@@ -4634,14 +4348,14 @@ void loop() {
 
                   {/* Report Generator */}
                   <div style={{ background: BG3, border: "1px solid " + BD, borderRadius: 14, padding: "20px" }}>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: G, letterSpacing: "1.5px", marginBottom: 10, fontWeight: 700 }}>REPORT TEMPLATE</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: G, letterSpacing: "1.5px", marginBottom: 10, fontWeight: 700 }}>REPORT TEMPLATE</div>
                     <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Project Report Generator</div>
                     <div style={{ fontSize: 12, color: MUT, lineHeight: 1.6, marginBottom: 14 }}>
                       Generates a filled Capstone report template with your selected MCU, sensors, species, and system type pre-inserted. Just fill in your observations.
                     </div>
                     {mcu && system ? (
                       <div>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, background: BG2, border: "1px solid " + BD, borderRadius: 8, padding: "10px 12px", marginBottom: 12, maxHeight: 140, overflow: "auto", color: "#81c784", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, background: BG2, border: "1px solid " + BD, borderRadius: 8, padding: "10px 12px", marginBottom: 12, maxHeight: 140, overflow: "auto", color: "#ffcc66", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                           {generateReport(mcu, system, spKey, sensors, actuators).slice(0, 300) + "..."}
                         </div>
                         <button className="pbtn" style={{ fontSize: 12, width: "100%" }} onClick={() => {
@@ -4660,7 +4374,7 @@ void loop() {
 
                   {/* BOM */}
                   <div style={{ background: BG3, border: "1px solid " + BD, borderRadius: 14, padding: "20px" }}>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: G, letterSpacing: "1.5px", marginBottom: 10, fontWeight: 700 }}>BILL OF MATERIALS</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, color: G, letterSpacing: "1.5px", marginBottom: 10, fontWeight: 700 }}>BILL OF MATERIALS</div>
                     <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>BOM Export (CSV)</div>
                     <div style={{ fontSize: 12, color: MUT, lineHeight: 1.6, marginBottom: 14 }}>
                       Exports a complete parts list with quantities, estimated EGP prices, and where to buy in Egypt.
@@ -4669,9 +4383,9 @@ void loop() {
                       <div>
                         <div style={{ background: BG2, border: "1px solid " + BD, borderRadius: 8, overflow: "auto", marginBottom: 12 }}>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 0, minWidth: 260 }}>
-                            <div style={{ padding: "7px 10px", fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD }}>COMPONENT</div>
-                            <div style={{ padding: "7px 10px", fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>QTY</div>
-                            <div style={{ padding: "7px 10px", fontSize: 10, color: MUT, fontFamily: "'JetBrains Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>EGP</div>
+                            <div style={{ padding: "7px 10px", fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD }}>COMPONENT</div>
+                            <div style={{ padding: "7px 10px", fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>QTY</div>
+                            <div style={{ padding: "7px 10px", fontSize: 10, color: MUT, fontFamily: "'IBM Plex Mono',monospace", borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD }}>EGP</div>
                             {mcu && [
                               [MCU[mcu]?.label || mcu, 1, customPrices.mcu[mcu] ?? COSTS.mcu[mcu] ?? 0],
                               ...Object.keys(sensors).map(k => [SENSORS[k]?.label || k, 1, customPrices.sensor[k] ?? COSTS.sensor[k] ?? 0]),
@@ -4680,7 +4394,7 @@ void loop() {
                             ].map(([name, qty, price], i) => [
                               <div key={i + "n"} style={{ padding: "6px 10px", fontSize: 11, color: TXT, borderBottom: "1px solid " + BD }}>{name}</div>,
                               <div key={i + "q"} style={{ padding: "6px 10px", fontSize: 11, color: MUT, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, textAlign: "center" }}>{qty}</div>,
-                              <div key={i + "p"} style={{ padding: "6px 10px", fontSize: 11, color: G, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, textAlign: "right", fontFamily: "'JetBrains Mono',monospace" }}>{price}</div>,
+                              <div key={i + "p"} style={{ padding: "6px 10px", fontSize: 11, color: G, borderBottom: "1px solid " + BD, borderLeft: "1px solid " + BD, textAlign: "right", fontFamily: "'IBM Plex Mono',monospace" }}>{price}</div>,
                             ])}
                           </div>
                         </div>
@@ -4755,7 +4469,7 @@ void loop() {
                   <p style={{ fontSize: 13, color: MUT, marginBottom: 24 }}>Component deep-dives — how each sensor and actuator works physically, with key facts and external references. Circuit and breadboard diagrams live in the Code Generator under the Circuit and Breadboard tabs.</p>
 
                   {/* ─── CONCEPT EXPLAINER ───────────────────────────── */}
-                  <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>CONCEPT EXPLAINER — TAP A COMPONENT</div>
+                  <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>CONCEPT EXPLAINER — TAP A COMPONENT</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
                     {[["sensor", "Sensors"], ["actuator", "Actuators"], ["mcu", "MCUs"]].map(([t, lbl]) => (
                       <button key={t} onClick={() => { setLearnType(t); setLearnItem(null); }}
@@ -4766,7 +4480,7 @@ void loop() {
                     {Object.entries(LESSONS[learnType] || {}).map(([k, v]) => (
                       <button key={k} onClick={() => setLearnItem(learnItem === k ? null : k)}
                         style={{ background: learnItem === k ? G4 : BG3, border: "1.5px solid " + (learnItem === k ? G : BD), borderRadius: 12, padding: "14px", cursor: "pointer", textAlign: "left", transition: "all .2s" }}>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 800, color: G, marginBottom: 6 }}>
+                        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, fontWeight: 800, color: G, marginBottom: 6 }}>
                           {learnType === "sensor" ? (SENSORS[k] || {}).icon : learnType === "actuator" ? (ACTUATORS[k] || {}).icon : k.toUpperCase()}
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: TXT, lineHeight: 1.3 }}>{v.title}</div>
@@ -4778,13 +4492,13 @@ void loop() {
                     return (
                       <div style={{ background: BG2, border: "1px solid " + BD2, borderRadius: 14, padding: "20px", marginBottom: 8 }}>
                         <div style={{ fontSize: 15, fontWeight: 800, color: G2, marginBottom: 14 }}>{lesson.title}</div>
-                        <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "1.5px", marginBottom: 6, fontWeight: 700 }}>HOW IT WORKS PHYSICALLY</div>
+                        <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "1.5px", marginBottom: 6, fontWeight: 700 }}>HOW IT WORKS PHYSICALLY</div>
                         <p style={{ fontSize: 13, color: TXT, lineHeight: 1.7, marginBottom: 16 }}>{lesson.how}</p>
-                        <div style={{ background: darkMode ? "#0a2a0a" : "#e8f5e9", border: "1px solid " + BD2, borderRadius: 8, padding: "12px 14px", marginBottom: 14 }}>
-                          <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "1.5px", fontWeight: 700, marginBottom: 4 }}>KEY FACT</div>
-                          <p style={{ fontSize: 12, color: darkMode ? "#a5d6a7" : "#1b5e20", lineHeight: 1.6 }}>{lesson.fact}</p>
+                        <div style={{ background: darkMode ? "#1a1200" : "#fff8e8", border: "1px solid " + BD2, borderRadius: 8, padding: "12px 14px", marginBottom: 14 }}>
+                          <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "1.5px", fontWeight: 700, marginBottom: 4 }}>KEY FACT</div>
+                          <p style={{ fontSize: 12, color: darkMode ? "#f5cc80" : "#8a5500", lineHeight: 1.6 }}>{lesson.fact}</p>
                         </div>
-                        <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "1.5px", fontWeight: 700, marginBottom: 8 }}>EXTERNAL LINKS — GO DEEPER</div>
+                        <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "1.5px", fontWeight: 700, marginBottom: 8 }}>EXTERNAL LINKS — GO DEEPER</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           {lesson.links.map(({ l, u }) => (
                             <a key={u} href={u} target="_blank" rel="noreferrer"
@@ -4793,7 +4507,7 @@ void loop() {
                               onMouseLeave={e => e.currentTarget.style.borderColor = BD}>
                               <div style={{ width: 6, height: 6, borderRadius: "50%", background: G, flexShrink: 0 }} />
                               <span style={{ fontSize: 12, color: G2, fontWeight: 600 }}>{l}</span>
-                              <span style={{ fontSize: 10, color: MUT, marginLeft: "auto", fontFamily: "'JetBrains Mono',monospace" }}>^</span>
+                              <span style={{ fontSize: 10, color: MUT, marginLeft: "auto", fontFamily: "'IBM Plex Mono',monospace" }}>^</span>
                             </a>
                           ))}
                         </div>
@@ -4813,7 +4527,7 @@ void loop() {
                 <p style={{ fontSize: 13, color: MUT, marginBottom: 28 }}>Everything you need to go further — learning materials, component shops, and references.</p>
 
                 {/* Egyptian Shops */}
-                <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>WHERE TO BUY IN EGYPT</div>
+                <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>WHERE TO BUY IN EGYPT</div>
                 <div className="grid-3" style={{ gap: 12, marginBottom: 28 }}>
                   {[
                     { name: "Makers Electronics", url: "https://makerselectronics.com", desc: "Largest Arduino & sensor stock in Egypt. Uno, sensors, relays, motors, ESP boards.", note: "Ships nationwide" },
@@ -4829,13 +4543,13 @@ void loop() {
                       onMouseLeave={e => e.currentTarget.style.borderColor = BD}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: G2, marginBottom: 6 }}>{shop.name}</div>
                       <div style={{ fontSize: 11, color: TXT, lineHeight: 1.6, marginBottom: 8 }}>{shop.desc}</div>
-                      <div style={{ fontSize: 10, color: G, fontFamily: "'JetBrains Mono',monospace" }}>{shop.note}</div>
+                      <div style={{ fontSize: 10, color: G, fontFamily: "'IBM Plex Mono',monospace" }}>{shop.note}</div>
                     </a>
                   ))}
                 </div>
 
                 {/* Learning Resources */}
-                <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>LEARN ELECTRONICS & ARDUINO</div>
+                <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>LEARN ELECTRONICS & ARDUINO</div>
                 <div className="grid-2" style={{ gap: 12, marginBottom: 28 }}>
                   {[
                     { name: "Arduino Official Docs", url: "https://docs.arduino.cc", desc: "The authoritative reference for every Arduino function, library, and board. Start with the Language Reference.", tag: "FREE · OFFICIAL" },
@@ -4851,7 +4565,7 @@ void loop() {
                       onMouseLeave={e => e.currentTarget.style.borderColor = BD}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                         <div style={{ fontSize: 13, fontWeight: 800, color: G2 }}>{r.name}</div>
-                        <span style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: G, background: "rgba(76,175,80,.1)", border: "1px solid rgba(76,175,80,.2)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>{r.tag}</span>
+                        <span style={{ fontSize: 9, fontFamily: "'IBM Plex Mono',monospace", color: G, background: "rgba(245,166,35,.1)", border: "1px solid rgba(245,166,35,.2)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>{r.tag}</span>
                       </div>
                       <div style={{ fontSize: 12, color: TXT, lineHeight: 1.6 }}>{r.desc}</div>
                     </a>
@@ -4859,7 +4573,7 @@ void loop() {
                 </div>
 
                 {/* YouTube */}
-                <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>RECOMMENDED YOUTUBE CHANNELS</div>
+                <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 12 }}>RECOMMENDED YOUTUBE CHANNELS</div>
                 <div className="grid-3" style={{ gap: 10, marginBottom: 28 }}>
                   {[
                     ["Paul McWhorter", "Absolute best Arduino series for beginners. 100+ videos going from zero to advanced sensors.", "English"],
@@ -4872,7 +4586,7 @@ void loop() {
                     <div key={name} style={{ background: BG3, border: "1px solid " + BD, borderRadius: 12, padding: "14px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: TXT }}>{name}</div>
-                        <span style={{ fontSize: 9, fontFamily: "'JetBrains Mono',monospace", color: lang === "عربي" ? "#ff7043" : G, background: "rgba(76,175,80,.08)", border: "1px solid " + BD2, borderRadius: 20, padding: "2px 8px" }}>{lang}</span>
+                        <span style={{ fontSize: 9, fontFamily: "'IBM Plex Mono',monospace", color: lang === "عربي" ? "#ff7043" : G, background: "rgba(245,166,35,.08)", border: "1px solid " + BD2, borderRadius: 20, padding: "2px 8px" }}>{lang}</span>
                       </div>
                       <div style={{ fontSize: 11, color: MUT, lineHeight: 1.5 }}>{desc}</div>
                     </div>
@@ -4881,7 +4595,7 @@ void loop() {
 
                 {/* Capstone tips */}
                 <div style={{ background: BG3, border: "1px solid " + BD2, borderRadius: 14, padding: "20px 24px" }}>
-                  <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 14 }}>CAPSTONE PROJECT TIPS</div>
+                  <div style={{ fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", color: G, letterSpacing: "2px", fontWeight: 700, marginBottom: 14 }}>CAPSTONE PROJECT TIPS</div>
                   <div className="grid-2" style={{ gap: 10 }}>
                     {[
                       ["Start with 1 sensor", "Get one sensor working perfectly before adding more. Debug one thing at a time."],
@@ -4905,7 +4619,465 @@ void loop() {
 
 
 
-          {/* ══ FLOATING AI CODE EDITOR (step 6 only) ══════════════════════════ */}
+          {/* ══ DASHBOARD TAB ═══════════════════════════════════════════════════════ */}
+          {mainTab === "dash" && (() => {
+            // ── helpers ─────────────────────────────────────────────────────────
+            const SENSOR_META = {
+              dht22:       { label:"Temperature",    unit:"°C",  min:0,   max:60,  color:"#f5a623", icon:"🌡" },
+              dht11:       { label:"Temperature",    unit:"°C",  min:0,   max:60,  color:"#f5a623", icon:"🌡" },
+              ds18b20:     { label:"Water Temp",     unit:"°C",  min:0,   max:50,  color:"#4a9eff", icon:"💧" },
+              water_level: { label:"Water Level",    unit:"",    min:0,   max:1023,color:"#22d3a0", icon:"📊" },
+              soil_moisture:{ label:"Soil Moisture", unit:"%",   min:0,   max:100, color:"#a78bfa", icon:"🌱" },
+              cap_soil:    { label:"Soil Moisture",  unit:"%",   min:0,   max:100, color:"#a78bfa", icon:"🌱" },
+              ldr:         { label:"Light",          unit:"lux", min:0,   max:1023,color:"#fbbf24", icon:"☀" },
+              bh1750:      { label:"Light",          unit:"lux", min:0,   max:65535,color:"#fbbf24", icon:"☀" },
+              tds:         { label:"TDS",            unit:"ppm", min:0,   max:1000,color:"#34d399", icon:"⚗" },
+              ph:          { label:"pH",             unit:"pH",  min:0,   max:14,  color:"#f87171", icon:"🧪" },
+              turbidity:   { label:"Turbidity",      unit:"NTU", min:0,   max:1000,color:"#60a5fa", icon:"🫧" },
+              flow:        { label:"Flow Rate",      unit:"L/m", min:0,   max:30,  color:"#38bdf8", icon:"〰" },
+              mq135:       { label:"Air Quality",    unit:"",    min:0,   max:1000,color:"#fb923c", icon:"💨" },
+            };
+
+            const ACT_META = {
+              fan:     { label:"Fan",          icon:"🌀" },
+              pump:    { label:"Water Pump",   icon:"💧" },
+              lamp:    { label:"Grow Light",   icon:"💡" },
+              thermal: { label:"Heat Lamp",    icon:"🔆" },
+              ptc:     { label:"PTC Heater",   icon:"🔥" },
+              aerator: { label:"Air Pump",     icon:"🫧" },
+            };
+
+            const sKeys = Object.keys(sensors);
+            const aKeys = Object.keys(actuators);
+
+            // ── simulate one tick of sensor data ──────────────────────────────
+            const simTick = () => {
+              dashTickRef.current += 1;
+              const now = new Date().toLocaleTimeString("en", { hour12:false });
+              const newData = {};
+              const newAlerts = [];
+
+              sKeys.forEach(k => {
+                const cfg = sensors[k];
+                let val;
+                if (k === "dht22" || k === "dht11") val = +(22 + Math.random()*10).toFixed(1);
+                else if (k === "ds18b20")      val = +(24 + Math.random()*8).toFixed(1);
+                else if (k === "water_level")  val = Math.floor(300 + Math.random()*600);
+                else if (k === "soil_moisture") val = Math.floor(30 + Math.random()*60);
+                else if (k === "cap_soil")     val = Math.floor(35 + Math.random()*55);
+                else if (k === "ldr")          val = Math.floor(200 + Math.random()*700);
+                else if (k === "bh1750")       val = Math.floor(2000 + Math.random()*30000);
+                else if (k === "tds")          val = Math.floor(200 + Math.random()*500);
+                else if (k === "ph")           val = +(6 + Math.random()*2.5).toFixed(2);
+                else if (k === "turbidity")    val = Math.floor(10 + Math.random()*300);
+                else if (k === "flow")         val = +(0.5 + Math.random()*4).toFixed(2);
+                else if (k === "mq135")        val = Math.floor(50 + Math.random()*300);
+                else val = +(Math.random()*100).toFixed(1);
+
+                newData[k] = [...(dashData[k] || []).slice(-29), { t: now, v: val }];
+
+                // check threshold
+                const thr = dashThresholds[k] || cfg;
+                if (thr && val < thr.min) newAlerts.push({ key:k, msg:`${SENSOR_META[k]?.label||k} LOW: ${val}`, ts: now, type:"low" });
+                if (thr && val > thr.max) newAlerts.push({ key:k, msg:`${SENSOR_META[k]?.label||k} HIGH: ${val}`, ts: now, type:"high" });
+              });
+
+              setDashData(prev => ({ ...prev, ...newData }));
+              if (newAlerts.length) setDashAlerts(prev => [...newAlerts, ...prev].slice(0,20));
+
+              // auto-control actuators based on thresholds
+              if (dashAutoMode) {
+                const newActState = { ...dashActState };
+                if (sensors.dht22 || sensors.dht11) {
+                  const t = (newData.dht22 || newData.dht11 || []).slice(-1)[0]?.v;
+                  const thr = dashThresholds.dht22 || dashThresholds.dht11 || sensors.dht22 || sensors.dht11 || {};
+                  if (t !== undefined) {
+                    if (actuators.fan)     newActState.fan     = t > thr.max;
+                    if (actuators.ptc)     newActState.ptc     = t < thr.min;
+                    if (actuators.thermal) newActState.thermal = t < thr.min;
+                  }
+                }
+                if (sensors.soil_moisture || sensors.cap_soil) {
+                  const s = (newData.soil_moisture || newData.cap_soil || []).slice(-1)[0]?.v;
+                  const thr = dashThresholds.soil_moisture || dashThresholds.cap_soil || sensors.soil_moisture || sensors.cap_soil || {};
+                  if (s !== undefined && actuators.pump) newActState.pump = s < thr.min;
+                }
+                if (sensors.ldr || sensors.bh1750) {
+                  const l = (newData.ldr || newData.bh1750 || []).slice(-1)[0]?.v;
+                  const thr = dashThresholds.ldr || dashThresholds.bh1750 || sensors.ldr || sensors.bh1750 || {};
+                  if (l !== undefined && actuators.lamp) newActState.lamp = l < thr.min;
+                }
+                setDashActState(newActState);
+              }
+            };
+
+            // ── start / stop ──────────────────────────────────────────────────
+            const startDash = () => {
+              if (dashConnMode === "ws") {
+                try {
+                  const ws = new WebSocket(dashWsUrl);
+                  ws.onmessage = (e) => {
+                    try {
+                      const parsed = JSON.parse(e.data);
+                      const now = new Date().toLocaleTimeString("en", { hour12:false });
+                      setDashData(prev => {
+                        const next = { ...prev };
+                        Object.entries(parsed).forEach(([k, v]) => {
+                          next[k] = [...(prev[k]||[]).slice(-29), { t:now, v:+v }];
+                        });
+                        return next;
+                      });
+                    } catch(_) {}
+                  };
+                  ws.onerror = () => setDashAlerts(prev => [{ key:"ws", msg:"WebSocket connection failed", ts: new Date().toLocaleTimeString(), type:"error" }, ...prev]);
+                  dashWsRef.current = ws;
+                } catch(e) {
+                  setDashAlerts(prev => [{ key:"ws", msg:"Invalid WebSocket URL", ts: new Date().toLocaleTimeString(), type:"error" }, ...prev]);
+                  return;
+                }
+              } else {
+                dashTickRef.current = 0;
+                simTick();
+                dashTimerRef.current = setInterval(simTick, 2000);
+              }
+              setDashRunning(true);
+            };
+
+            const stopDash = () => {
+              clearInterval(dashTimerRef.current);
+              if (dashWsRef.current) { try { dashWsRef.current.close(); } catch(_){} dashWsRef.current = null; }
+              setDashRunning(false);
+            };
+
+            // ── mini sparkline SVG ────────────────────────────────────────────
+            const Sparkline = ({ data, color, w=120, h=40 }) => {
+              if (!data || data.length < 2) return <svg width={w} height={h}><text x="4" y="22" fill="rgba(255,255,255,.2)" fontSize="10" fontFamily="'IBM Plex Mono',monospace">no data</text></svg>;
+              const vals = data.map(d => d.v);
+              const mn = Math.min(...vals), mx = Math.max(...vals);
+              const range = mx - mn || 1;
+              const pts = vals.map((v, i) => `${(i/(vals.length-1))*w},${h - ((v-mn)/range)*(h-6)-3}`).join(" ");
+              return (
+                <svg width={w} height={h} style={{ overflow:"visible" }}>
+                  <defs>
+                    <linearGradient id={"sg"+color.replace("#","")} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity=".3"/>
+                      <stop offset="100%" stopColor={color} stopOpacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <polygon points={`0,${h} ${pts} ${w},${h}`} fill={`url(#sg${color.replace("#","")})`}/>
+                  <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx={(vals.length-1)/(vals.length-1)*w} cy={h - ((vals[vals.length-1]-mn)/range)*(h-6)-3} r="3" fill={color}/>
+                </svg>
+              );
+            };
+
+            // ── gauge arc ────────────────────────────────────────────────────
+            const Gauge = ({ val, min, max, color, size=90 }) => {
+              const pct = Math.min(1, Math.max(0, (val - min) / (max - min)));
+              const angle = -210 + pct * 240;
+              const r = size/2 - 8;
+              const cx = size/2, cy = size/2;
+              const toXY = (deg) => {
+                const rad = (deg - 90) * Math.PI / 180;
+                return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+              };
+              const [sx, sy] = toXY(-210);
+              const [ex, ey] = toXY(angle);
+              const largeArc = pct > 0.5 ? 1 : 0;
+              return (
+                <svg width={size} height={size*0.75} viewBox={`0 0 ${size} ${size*0.75}`}>
+                  <path d={`M ${toXY(-210)[0]} ${toXY(-210)[1]} A ${r} ${r} 0 1 1 ${toXY(30)[0]} ${toXY(30)[1]}`}
+                    fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="5" strokeLinecap="round"/>
+                  {pct > 0 && <path d={`M ${sx} ${sy} A ${r} ${r} 0 ${largeArc} 1 ${ex} ${ey}`}
+                    fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+                    style={{ filter:`drop-shadow(0 0 4px ${color})` }}/>}
+                  <text x={cx} y={cy+4} textAnchor="middle" fill={color} fontSize={size*0.16} fontWeight="700" fontFamily="'IBM Plex Mono',monospace">{typeof val === "number" ? (val % 1 === 0 ? val : val.toFixed(1)) : "—"}</text>
+                </svg>
+              );
+            };
+
+            // ── no sensors guard ──────────────────────────────────────────────
+            if (sKeys.length === 0) return (
+              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, color:MUT }}>
+                <div style={{ fontSize:48 }}>📡</div>
+                <div style={{ fontSize:18, fontWeight:700, color:TXT }}>No sensors configured</div>
+                <div style={{ fontSize:14, color:MUT }}>Go to Code Generator → select sensors first</div>
+                <button className="pbtn" onClick={() => setMainTab("gen")}>Go to Generator →</button>
+              </div>
+            );
+
+            return (
+              <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+                {/* ── TOP BAR ── */}
+                <div style={{ padding:"14px 24px", borderBottom:"1px solid "+BD, background:BG2, display:"flex", alignItems:"center", gap:14, flexWrap:"wrap", flexShrink:0 }}>
+                  <div>
+                    <div style={{ fontFamily:"'Bebas Neue',display", fontSize:22, letterSpacing:"3px", color:TXT, lineHeight:1 }}>LIVE DASHBOARD</div>
+                    <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:MUT, marginTop:2 }}>
+                      {dashRunning ? <span style={{ color:"#22d3a0" }}>● LIVE — {sKeys.length} sensors · {aKeys.length} actuators</span> : <span>● IDLE</span>}
+                    </div>
+                  </div>
+
+                  {/* Connection mode */}
+                  <div style={{ display:"flex", gap:6, alignItems:"center", marginLeft:8 }}>
+                    {["sim","ws"].map(m => (
+                      <button key={m} onClick={() => { if (!dashRunning) setDashConnMode(m); }}
+                        style={{ background: dashConnMode===m ? "rgba(245,166,35,.15)" : "transparent", border:"1px solid "+(dashConnMode===m ? "rgba(245,166,35,.5)" : BD), borderRadius:6, padding:"5px 12px", cursor:"pointer", fontFamily:"'IBM Plex Mono',monospace", fontSize:11, color: dashConnMode===m ? G : MUT, fontWeight:700, transition:"all .18s" }}>
+                        {m === "sim" ? "SIMULATE" : "HARDWARE"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* WS URL input */}
+                  {dashConnMode === "ws" && !dashRunning && (
+                    <input value={dashWsUrl} onChange={e => setDashWsUrl(e.target.value)}
+                      style={{ background:BG3, border:"1px solid "+BD2, color:TXT, padding:"6px 12px", borderRadius:6, fontFamily:"'IBM Plex Mono',monospace", fontSize:11, outline:"none", width:220 }}
+                      placeholder="ws://192.168.1.100:81" />
+                  )}
+
+                  {/* Auto / Manual */}
+                  <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:MUT }}>CONTROL:</span>
+                    {["auto","manual"].map(m => (
+                      <button key={m} onClick={() => setDashAutoMode(m === "auto")}
+                        style={{ background: (dashAutoMode ? "auto" : "manual")===m ? "rgba(245,166,35,.15)" : "transparent", border:"1px solid "+((dashAutoMode ? "auto" : "manual")===m ? "rgba(245,166,35,.5)" : BD), borderRadius:6, padding:"5px 12px", cursor:"pointer", fontFamily:"'IBM Plex Mono',monospace", fontSize:11, color:(dashAutoMode ? "auto" : "manual")===m ? G : MUT, fontWeight:700, transition:"all .18s" }}>
+                        {m.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+                    <button className="gbtn" style={{ fontSize:12, padding:"8px 16px" }} onClick={() => { setDashData({}); setDashAlerts([]); setDashActState({}); }}>Reset</button>
+                    {dashRunning
+                      ? <button className="pbtn" style={{ fontSize:12, padding:"9px 22px", background:"linear-gradient(135deg,#7a1a1a,#c62828)", backgroundSize:"100%", animation:"none" }} onClick={stopDash}>⏹ Stop</button>
+                      : <button className="pbtn" style={{ fontSize:12, padding:"9px 22px" }} onClick={startDash}>▶ Start {dashConnMode === "sim" ? "Simulation" : "Connection"}</button>}
+                  </div>
+                </div>
+
+                {/* ── MAIN CONTENT ── */}
+                <div style={{ flex:1, overflow:"auto", padding:"20px 24px", display:"flex", gap:18 }}>
+
+                  {/* LEFT: Sensor cards + charts */}
+                  <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:16 }}>
+
+                    {/* Sensor gauge grid */}
+                    <div>
+                      <div className="sec-lbl">SENSOR READINGS</div>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:12 }}>
+                        {sKeys.map(k => {
+                          const meta = SENSOR_META[k] || { label:k, unit:"", min:0, max:100, color:G, icon:"📡" };
+                          const history = dashData[k] || [];
+                          const latest = history[history.length-1]?.v;
+                          const thr = dashThresholds[k] || sensors[k] || {};
+                          const isAlert = latest !== undefined && (latest < thr.min || latest > thr.max);
+
+                          return (
+                            <div key={k} style={{ background:BG3, border:"1px solid "+(isAlert ? "rgba(248,113,113,.5)" : BD), borderRadius:12, padding:"16px 14px", transition:"border-color .3s", position:"relative", overflow:"hidden" }}>
+                              {isAlert && <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,transparent,#f87171,transparent)", animation:"shimmer 2s ease-in-out infinite", backgroundSize:"400% auto" }}/>}
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                                  <span style={{ fontSize:16 }}>{meta.icon}</span>
+                                  <div>
+                                    <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:meta.color, fontWeight:700, letterSpacing:"1px" }}>{SENSORS[k]?.icon || k.toUpperCase()}</div>
+                                    <div style={{ fontSize:12, fontWeight:600, color:TXT }}>{meta.label}</div>
+                                  </div>
+                                </div>
+                                {isAlert && <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color:"#f87171", fontWeight:700, background:"rgba(248,113,113,.1)", border:"1px solid rgba(248,113,113,.3)", borderRadius:20, padding:"2px 8px" }}>ALERT</div>}
+                              </div>
+
+                              {/* Gauge */}
+                              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                <Gauge val={latest ?? meta.min} min={meta.min} max={meta.max} color={isAlert ? "#f87171" : meta.color} size={80}/>
+                                <div style={{ flex:1 }}>
+                                  <div style={{ fontFamily:"'Bebas Neue',display", fontSize:32, color: isAlert ? "#f87171" : meta.color, lineHeight:1, letterSpacing:"1px" }}>
+                                    {latest !== undefined ? (latest % 1 === 0 ? latest : latest.toFixed(1)) : "—"}
+                                    <span style={{ fontSize:14, fontFamily:"'IBM Plex Mono',monospace", color:MUT, marginLeft:3 }}>{meta.unit}</span>
+                                  </div>
+                                  <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color:MUT, marginTop:4, lineHeight:1.6 }}>
+                                    MIN {thr.min ?? meta.min} · MAX {thr.max ?? meta.max}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Sparkline */}
+                              <div style={{ marginTop:8 }}>
+                                <Sparkline data={history} color={isAlert ? "#f87171" : meta.color} w={260} h={36}/>
+                              </div>
+
+                              {/* Threshold editors */}
+                              <div style={{ marginTop:10, display:"flex", gap:6, alignItems:"center" }}>
+                                <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color:MUT }}>MIN</span>
+                                <input type="number" value={dashThresholds[k]?.min ?? sensors[k]?.min ?? meta.min}
+                                  onChange={e => setDashThresholds(p => ({ ...p, [k]:{ ...(p[k]||sensors[k]||{}), min:parseFloat(e.target.value)||0 } }))}
+                                  style={{ width:54, background:BG2, border:"1px solid "+BD2, color:TXT, padding:"3px 6px", borderRadius:4, fontFamily:"'IBM Plex Mono',monospace", fontSize:11, outline:"none" }}/>
+                                <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color:MUT }}>MAX</span>
+                                <input type="number" value={dashThresholds[k]?.max ?? sensors[k]?.max ?? meta.max}
+                                  onChange={e => setDashThresholds(p => ({ ...p, [k]:{ ...(p[k]||sensors[k]||{}), max:parseFloat(e.target.value)||0 } }))}
+                                  style={{ width:54, background:BG2, border:"1px solid "+BD2, color:TXT, padding:"3px 6px", borderRadius:4, fontFamily:"'IBM Plex Mono',monospace", fontSize:11, outline:"none" }}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Live chart — last 30 readings per sensor, stacked */}
+                    {Object.keys(dashData).length > 0 && (
+                      <div>
+                        <div className="sec-lbl">LIVE HISTORY CHART</div>
+                        <div style={{ background:BG3, border:"1px solid "+BD, borderRadius:12, padding:"16px 18px" }}>
+                          {sKeys.map(k => {
+                            const meta = SENSOR_META[k] || { label:k, unit:"", color:G };
+                            const history = dashData[k] || [];
+                            if (!history.length) return null;
+                            const vals = history.map(d => d.v);
+                            const mn = Math.min(...vals), mx = Math.max(...vals);
+                            const range = mx - mn || 1;
+                            const W = 600, H = 60;
+                            const pts = vals.map((v, i) => `${(i/(Math.max(vals.length-1,1)))*W},${H-((v-mn)/range)*(H-8)-4}`).join(" ");
+                            return (
+                              <div key={k} style={{ marginBottom:16 }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                                  <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:meta.color, fontWeight:700 }}>{meta.label} ({meta.unit})</span>
+                                  <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:MUT }}>{mn.toFixed(1)} – {mx.toFixed(1)}</span>
+                                </div>
+                                <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display:"block" }}>
+                                  <defs>
+                                    <linearGradient id={"hg"+k} x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="0%" stopColor={meta.color} stopOpacity=".25"/>
+                                      <stop offset="100%" stopColor={meta.color} stopOpacity="0"/>
+                                    </linearGradient>
+                                  </defs>
+                                  <polygon points={`0,${H} ${pts} ${W},${H}`} fill={`url(#hg${k})`}/>
+                                  <polyline points={pts} fill="none" stroke={meta.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  {/* threshold lines */}
+                                  {(() => {
+                                    const thr = dashThresholds[k] || sensors[k] || {};
+                                    const minY = thr.min !== undefined ? H-((thr.min-mn)/range)*(H-8)-4 : null;
+                                    const maxY = thr.max !== undefined ? H-((thr.max-mn)/range)*(H-8)-4 : null;
+                                    return <>
+                                      {minY !== null && minY >= 0 && minY <= H && <line x1="0" y1={minY} x2={W} y2={minY} stroke="#22d3a0" strokeWidth="1" strokeDasharray="5,4" opacity=".5"/>}
+                                      {maxY !== null && maxY >= 0 && maxY <= H && <line x1="0" y1={maxY} x2={W} y2={maxY} stroke="#f87171" strokeWidth="1" strokeDasharray="5,4" opacity=".5"/>}
+                                    </>;
+                                  })()}
+                                </svg>
+                                <div style={{ display:"flex", gap:4, marginTop:4, overflow:"hidden" }}>
+                                  {history.slice(-8).map((d,i) => (
+                                    <span key={i} style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:8, color:MUT, flex:1, textAlign:"center" }}>{d.t}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT: Actuator controls + alerts */}
+                  <div style={{ width:260, flexShrink:0, display:"flex", flexDirection:"column", gap:16 }}>
+
+                    {/* Actuator controls */}
+                    <div>
+                      <div className="sec-lbl">ACTUATOR CONTROL</div>
+                      {aKeys.length === 0 && <div style={{ fontSize:13, color:MUT, padding:"12px 0" }}>No actuators configured.</div>}
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        {aKeys.map(k => {
+                          const meta = ACT_META[k] || { label:k, icon:"⚙" };
+                          const isOn = !!dashActState[k];
+                          return (
+                            <div key={k} style={{ background:BG3, border:"1px solid "+(isOn ? "rgba(34,211,160,.4)" : BD), borderRadius:10, padding:"12px 14px", transition:"all .25s" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                  <span style={{ fontSize:18 }}>{meta.icon}</span>
+                                  <div>
+                                    <div style={{ fontSize:13, fontWeight:700, color: isOn ? "#22d3a0" : TXT }}>{meta.label}</div>
+                                    <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color: isOn ? "#22d3a0" : MUT }}>{isOn ? "● ON" : "○ OFF"}</div>
+                                  </div>
+                                </div>
+                                {/* Toggle */}
+                                <div onClick={() => { if (!dashAutoMode) setDashActState(p => ({ ...p, [k]: !p[k] })); }}
+                                  style={{ width:44, height:24, borderRadius:12, background: isOn ? "#22d3a0" : BD2, position:"relative", cursor: dashAutoMode ? "not-allowed" : "pointer", transition:"background .25s", opacity: dashAutoMode ? .7 : 1 }}>
+                                  <div style={{ width:18, height:18, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left: isOn ? 23 : 3, transition:"left .22s cubic-bezier(.34,1.56,.64,1)", boxShadow:"0 1px 4px rgba(0,0,0,.3)" }}/>
+                                </div>
+                              </div>
+                              {/* Status bar */}
+                              <div style={{ height:3, borderRadius:2, background: isOn ? "linear-gradient(90deg,#22d3a0,#34d399)" : BD, transition:"background .3s",
+                                boxShadow: isOn ? "0 0 8px rgba(34,211,160,.4)" : "none" }}/>
+                              {dashAutoMode && <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color:MUT, marginTop:6 }}>AUTO — controlled by thresholds</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* System status summary */}
+                    <div style={{ background:BG3, border:"1px solid "+BD, borderRadius:10, padding:"14px 14px" }}>
+                      <div className="sec-lbl" style={{ marginBottom:10 }}>SYSTEM STATUS</div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                        {[
+                          ["Active Sensors",   sKeys.length, G],
+                          ["Active Actuators", aKeys.filter(k => dashActState[k]).length, "#22d3a0"],
+                          ["Alerts",           dashAlerts.filter(a => {
+                            const now = Date.now();
+                            return true; // show total
+                          }).length, dashAlerts.length > 0 ? "#f87171" : MUT],
+                          ["Data Points",      sKeys.reduce((a,k) => a + (dashData[k]?.length||0), 0), MUT],
+                        ].map(([label, val, col]) => (
+                          <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid "+BD }}>
+                            <span style={{ fontSize:12, color:MUT }}>{label}</span>
+                            <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:14, fontWeight:700, color:col }}>{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Alerts log */}
+                    <div style={{ background:BG3, border:"1px solid "+BD, borderRadius:10, overflow:"hidden", flex:1 }}>
+                      <div style={{ padding:"10px 14px", borderBottom:"1px solid "+BD, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div className="sec-lbl" style={{ margin:0 }}>ALERTS LOG</div>
+                        {dashAlerts.length > 0 && (
+                          <button onClick={() => setDashAlerts([])} style={{ background:"none", border:"none", cursor:"pointer", fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:MUT }}>Clear</button>
+                        )}
+                      </div>
+                      <div style={{ maxHeight:220, overflow:"auto", padding:"8px" }}>
+                        {dashAlerts.length === 0 ? (
+                          <div style={{ textAlign:"center", padding:"20px 0", fontFamily:"'IBM Plex Mono',monospace", fontSize:11, color:MUT }}>No alerts</div>
+                        ) : dashAlerts.map((a,i) => (
+                          <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"7px 8px", borderRadius:6, background: i===0 ? "rgba(248,113,113,.06)" : "transparent", marginBottom:3 }}>
+                            <div style={{ width:6, height:6, borderRadius:"50%", background: a.type==="high" ? "#f87171" : a.type==="low" ? "#60a5fa" : "#f5a623", marginTop:5, flexShrink:0 }}/>
+                            <div>
+                              <div style={{ fontSize:11, color:TXT, fontWeight:600 }}>{a.msg}</div>
+                              <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:9, color:MUT, marginTop:1 }}>{a.ts}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* WebSocket instructions */}
+                    {dashConnMode === "ws" && (
+                      <div style={{ background:"rgba(74,158,255,.05)", border:"1px solid rgba(74,158,255,.2)", borderRadius:10, padding:"12px 14px" }}>
+                        <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:"#4a9eff", fontWeight:700, marginBottom:8 }}>ARDUINO → WEBSOCKET</div>
+                        <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:10, color:MUT, lineHeight:1.7 }}>
+                          Send JSON from ESP32/ESP8266:{"
+
+"}
+                          <span style={{ color:"#22d3a0" }}>{'{"dht22":23.5,"ph":7.1}'}</span>
+                          {"
+
+"}Use WebSocketsServer library on port 81.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+
+                    {/* ══ FLOATING AI CODE EDITOR (step 6 only) ══════════════════════════ */}
           {/* ── TOOL MODAL ──────────────────────────────────────────────────────── */}
           {toolModal && (
             <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
@@ -4914,11 +5086,11 @@ void loop() {
                 {/* Header */}
                 <div style={{ padding: "14px 18px", borderBottom: "1px solid " + BD, display: "flex", alignItems: "center", justifyContent: "space-between", background: BG3 }}>
                   <div>
-                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: G, fontWeight: 700, letterSpacing: "1px", marginBottom: 2 }}>TOOL OUTPUT</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: G, fontWeight: 700, letterSpacing: "1px", marginBottom: 2 }}>TOOL OUTPUT</div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: TXT }}>{toolModal.title}</div>
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: MUT, fontFamily: "'JetBrains Mono',monospace" }}>{toolModal.filename}</span>
+                    <span style={{ fontSize: 11, color: MUT, fontFamily: "'IBM Plex Mono',monospace" }}>{toolModal.filename}</span>
                     <button className="pbtn" style={{ fontSize: 11, padding: "7px 14px" }} onClick={copyToolContent}>
                       {toolCopied ? "Copied!" : "Copy All"}
                     </button>
@@ -4926,12 +5098,12 @@ void loop() {
                   </div>
                 </div>
                 {/* Instruction banner */}
-                <div style={{ padding: "8px 18px", background: darkMode ? "#0a1a0a" : "#e8f5e9", borderBottom: "1px solid " + BD, fontSize: 11, color: MUT }}>
+                <div style={{ padding: "8px 18px", background: darkMode ? "#0a1a0a" : "#fff8e8", borderBottom: "1px solid " + BD, fontSize: 11, color: MUT }}>
                   Click "Copy All" to copy this content, then paste it into a text editor or spreadsheet and save with the filename shown above.
                 </div>
                 {/* Content */}
                 <div style={{ flex: 1, overflow: "auto", padding: "14px 18px" }}>
-                  <pre style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: darkMode ? "#a5d6a7" : "#1a3a1a", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+                  <pre style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: darkMode ? "#f5cc80" : "#1a3a1a", lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
                     {toolModal.content}
                   </pre>
                 </div>
@@ -4946,14 +5118,14 @@ void loop() {
                   <div style={{ padding: "11px 14px", borderBottom: "1px solid " + BD, background: BG2, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 13 }}>AI Code Editor</div>
-                      <div style={{ fontSize: 10, color: G, fontFamily: "'JetBrains Mono',monospace" }}>Modify your code with AI</div>
+                      <div style={{ fontSize: 10, color: G, fontFamily: "'IBM Plex Mono',monospace" }}>Modify your code with AI</div>
                     </div>
                     <button onClick={() => setFloatOpen(false)} style={{ background: "none", border: "none", color: MUT, fontSize: 14, cursor: "pointer" }}>x</button>
                   </div>
                   <div className="fbot-msgs">
                     {floatMsgs.length === 0 && (
                       <div style={{ textAlign: "center", padding: "14px 8px", color: MUT, fontSize: 11, lineHeight: 1.7 }}>
-                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, marginBottom: 8, color: BD2 }}>Your code is loaded. Try:</div>
+                        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 10, marginBottom: 8, color: BD2 }}>Your code is loaded. Try:</div>
                         {["Add a buzzer alarm", "Change pump pin to 8", "Add LCD display", "Add WiFi logging (ESP32)"].map(s => (
                           <div key={s} onClick={() => setFloatIn(s)}
                             style={{ background: BG3, border: "1px solid " + BD, borderRadius: 7, padding: "5px 9px", marginBottom: 5, cursor: "pointer", fontSize: 11, color: G2, textAlign: "left" }}>
@@ -4978,9 +5150,9 @@ void loop() {
                     <input value={floatIn} onChange={e => setFloatIn(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && sendFloat()}
                       placeholder="e.g. Add a buzzer alarm..."
-                      style={{ flex: 1, background: BG3, border: "1px solid " + BD2, color: TXT, padding: "8px 11px", borderRadius: 8, fontFamily: "'Outfit',sans-serif", fontSize: 12, outline: "none" }} />
+                      style={{ flex: 1, background: BG3, border: "1px solid " + BD2, color: TXT, padding: "8px 11px", borderRadius: 8, fontFamily: "'Instrument Sans',sans-serif", fontSize: 12, outline: "none" }} />
                     <button onClick={sendFloat} disabled={floatLoad}
-                      style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", border: "none", color: "#fff", padding: "8px 13px", borderRadius: 8, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+                      style={{ background: "linear-gradient(135deg," + G3 + "," + G + ")", border: "none", color: "#fff", padding: "8px 13px", borderRadius: 8, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
                       GO
                     </button>
                   </div>
